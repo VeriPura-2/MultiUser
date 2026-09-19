@@ -531,3 +531,28 @@ Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-1 (eight numbered items). E
 - The option name `purchaseOrders` on `AppOptions` was misleading (it configures actor resolution for every route). New name `actor`; the old one is kept as an alias so no caller changes.
 
 **Tests:** 14 new in `tests/me.test.ts` (superadmin, normal user with sorted roles, org admin, cross-org role exclusion, 401 cases, 403 inactive, both headers and precedence, `AUTH_MODE` values, the deprecated switch, refusal to start under production for all three ways of enabling, normal production start, `/dev/users` on and off). Full suite: **220 of 220**.
+
+---
+
+## 2026-09-19, UI-1 step 2: `npm run seed:dev`
+
+**Built**
+- `src/dev/seedDev.ts` and `scripts/seed-dev.ts`, wired as `npm run seed:dev`. Everything is labelled "Sample". Refuses to run unless `DATABASE_URL` points at this machine. Idempotent: if the sample superadmin exists it says so and changes nothing.
+- One superadmin; an importer, three exporters (Alpha, Bravo, Charlie), a logistics org, and a lab_cert org, all created through `proposeOrganization` and `approveOrganization`, so each has the five standard roles, an Organization Admin first user, and real audit rows. A second importer user holds only the Viewer role (made through `inviteUser`, then set active, since nothing yet performs the invited-to-active step).
+- 100 `document_permission_rules` rows: every org type (all five, including `data_source`), every standard role, every document type, view level only, every grant false.
+- Five consignments made through the real `submitPurchaseOrder` flow, in different states: `checklist_pending` (a core client that accepts but sends no checklist, as live core would), `checklist_received` with two unresolved issues (one `open`, one `correction_requested`), `active` with a resolved issue in its history, `completed`, and `cancelled`.
+- `STUB_CHECKLIST_DOCUMENTS` is now exported from `src/core/client.ts` and used by both the stub client and the seed, so the seed cannot drift from the stub. Behavior of the stub is unchanged.
+
+**Decisions**
+- Document types are exactly the stub's four, with `category` null, as the prompt directs. A comment at the top of the seed says these are stub data pending the authoritative list.
+- The permission matrix is illustrative, chosen so the UI meets full, status_only, and hidden (for example logistics sees the Bill of Lading in full and the Export Health Certificate not at all; the Viewer role is status_only). It is labelled as sample data; the real matrix comes from the pilot Scope of Work Section 7.
+- `seed:dev` reports "already present" rather than resetting. If a seed fails halfway the sandbox should be reset. The services own their transactions, so the whole seed is not one transaction.
+- The safety guard compares the parsed hostname exactly (`localhost`, `127.0.0.1`, `::1`), so a host that merely starts with "localhost" (such as `localhost.evil.com`) is refused.
+
+**Found while running it: a conflict with an earlier script (recorded as an open item for Thomas, not changed).** The dev database was already seeded by `npm run db:seed` (stage 1), which gave the four document types the categories "Customs & logistics" and "Certifications". Those were never confirmed. UI-1 says not to invent categories and UI-2 groups the roadmap by category, so on this database the UI would present them as real. `seed:dev` deliberately leaves existing rows alone, so they remain. Choices for Thomas are in the open item in `docs/PROJECT_MEMORY.md`. Per the standing ask-before-pattern-fix rule this was not changed unasked.
+
+**Test gap found by mutation and fixed.** Removing the local-only guard from `seedDev()` left every test green, because the guard was tested in isolation but not shown to be called. Added a test that `seedDev()` refuses a non-local `DATABASE_URL` before writing anything. The other mutations (grants set true, a category invented, the idempotency check removed) were caught.
+
+**Verified:** seeded the real local dev database (1 user and 0 orgs before; 9 users, 6 orgs, 5 consignments, 3 issues, 100 rules after) and ran it a second time to confirm the idempotent message.
+
+**Tests:** 13 new in `tests/seedDev.test.ts`. Full suite: **233 of 233**.

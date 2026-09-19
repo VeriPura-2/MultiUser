@@ -4,8 +4,20 @@ import type {
   CoreChecklistPayload,
   CoreConsignmentPayload,
   CoreSubmitResult,
+  RequiredDocument,
   VeriPuraCoreClient,
 } from "./types.js";
+
+/**
+ * The stub's example checklist. These are placeholder documents, not the authoritative list,
+ * which has not been confirmed. Exported so the dev seed uses exactly the same names.
+ */
+export const STUB_CHECKLIST_DOCUMENTS: readonly RequiredDocument[] = [
+  { documentTypeName: "Commercial Invoice", requiredBy: "exporter" },
+  { documentTypeName: "Packing List", requiredBy: "exporter" },
+  { documentTypeName: "Bill of Lading", requiredBy: "logistics" },
+  { documentTypeName: "Export Health Certificate", requiredBy: "exporter" },
+];
 
 /**
  * Stand-in for core until the real contract is confirmed. After a simulated delay it returns a
@@ -19,12 +31,7 @@ export class StubVeriPuraCoreClient implements VeriPuraCoreClient {
     if (this.delayMs > 0) await new Promise((resolve) => setTimeout(resolve, this.delayMs));
     const checklist: CoreChecklistPayload = {
       consignmentId: payload.consignmentId,
-      requiredDocuments: [
-        { documentTypeName: "Commercial Invoice", requiredBy: "exporter" },
-        { documentTypeName: "Packing List", requiredBy: "exporter" },
-        { documentTypeName: "Bill of Lading", requiredBy: "logistics" },
-        { documentTypeName: "Export Health Certificate", requiredBy: "exporter" },
-      ],
+      requiredDocuments: STUB_CHECKLIST_DOCUMENTS.map((d) => ({ ...d })),
     };
     return { checklist };
   }

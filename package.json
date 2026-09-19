@@ -19,7 +19,8 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "prepare": "git config core.hooksPath .githooks || exit 0",
-    "memory:check": "node scripts/memory-check.mjs"
+    "memory:check": "node scripts/memory-check.mjs",
+    "seed:dev": "tsx scripts/seed-dev.ts"
   },
   "dependencies": {
     "dotenv": "^18.0.1",
