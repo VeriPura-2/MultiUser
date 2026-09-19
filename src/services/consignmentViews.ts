@@ -1,10 +1,11 @@
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, or } from "drizzle-orm";
 import { getDb, type DbExecutor } from "../db/client.js";
 import {
   consignments,
   document_checklist_items,
   document_types,
   issues,
+  organizations,
   type ChecklistItemStatus,
   type ChecklistRequiredBy,
   type Consignment,
@@ -241,5 +242,109 @@ export async function getConsignmentChecklist(
     }
 
     return { consignmentId: consignment.id, consignmentStatus: consignment.status, checklist };
+  }, READ_ONLY_SNAPSHOT);
+}
+
+// ---------------------------------------------------------------------------
+// Endpoint 2: the consignment list
+// ---------------------------------------------------------------------------
+
+export interface ConsignmentSummary {
+  id: string;
+  commodity: string;
+  status: ConsignmentStatus;
+  /** The other party as seen from the viewer's org. Null for superadmin, who has no side. */
+  counterpartOrgName: string | null;
+  importerOrgName: string;
+  exporterOrgName: string;
+  /** verified items over all items the viewer can see (status_only and full; hidden excluded). */
+  checklistCompleteness: { verified: number; total: number };
+  /** Items with an open or correction_requested issue that the viewer can see at full view. */
+  openIssueCount: number;
+}
+
+/** The visibility-filtered figures every summary and workload row is built from. */
+export interface ItemTotals {
+  visibleTotal: number;
+  visibleVerified: number;
+  awaitingUpload: number;
+  openIssueItems: number;
+}
+
+/**
+ * Counts one consignment's items from the viewer's point of view. Completeness uses every item
+ * the viewer can see, exactly the set the checklist endpoint returns. Anything that exposes
+ * content (awaiting-upload counts and issue counts) uses only full-view items, so a status_only
+ * or hidden document never contributes to a number the viewer could use to infer what is in it.
+ */
+export function totalsFor(items: readonly ResolvedItem[], openIssues: ReadonlyMap<string, Issue>): ItemTotals {
+  const visible = items.filter(isVisible);
+  const full = items.filter(isFullView);
+  return {
+    visibleTotal: visible.length,
+    visibleVerified: visible.filter((i) => i.status === "verified").length,
+    awaitingUpload: full.filter((i) => i.status === "awaiting_upload").length,
+    openIssueItems: full.filter((i) => openIssues.has(i.id)).length,
+  };
+}
+
+/** Groups resolved items by consignment id. */
+export function groupByConsignment(items: readonly ResolvedItem[]): Map<string, ResolvedItem[]> {
+  const grouped = new Map<string, ResolvedItem[]>();
+  for (const item of items) {
+    const list = grouped.get(item.consignmentId) ?? [];
+    list.push(item);
+    grouped.set(item.consignmentId, list);
+  }
+  return grouped;
+}
+
+/**
+ * Consignments the viewer is a party to (all of them for superadmin), newest first, each with a
+ * summary computed through the same visibility filtering as the checklist endpoint. Not
+ * paginated yet: one organization's consignments are expected to be few during the trial.
+ */
+export async function listConsignments(actingUser: UserRef): Promise<ConsignmentSummary[]> {
+  return getDb().transaction(async (tx) => {
+    const actor = await loadActiveActor(actingUser, tx);
+
+    const rows = await tx
+      .select()
+      .from(consignments)
+      .where(
+        isSuperadmin(actor)
+          ? undefined
+          : or(eq(consignments.importer_org_id, actor.organization_id!), eq(consignments.exporter_org_id, actor.organization_id!)),
+      )
+      .orderBy(desc(consignments.created_at), asc(consignments.id));
+    if (rows.length === 0) return [];
+
+    const orgIds = [...new Set(rows.flatMap((c) => [c.importer_org_id, c.exporter_org_id]))];
+    const orgs = await tx.select({ id: organizations.id, name: organizations.name }).from(organizations).where(inArray(organizations.id, orgIds));
+    const nameOf = new Map(orgs.map((o) => [o.id, o.name]));
+
+    const resolve = await createPermissionResolver(actor, tx);
+    const items = await loadResolvedItems(tx, rows.map((c) => c.id), resolve);
+    const openIssues = await loadUnresolvedIssues(tx, items.filter(isFullView).map((i) => i.id));
+    const byConsignment = groupByConsignment(items);
+
+    return rows.map((c) => {
+      const totals = totalsFor(byConsignment.get(c.id) ?? [], openIssues);
+      const counterpartId = isSuperadmin(actor)
+        ? null
+        : c.importer_org_id === actor.organization_id
+          ? c.exporter_org_id
+          : c.importer_org_id;
+      return {
+        id: c.id,
+        commodity: c.commodity,
+        status: c.status,
+        counterpartOrgName: counterpartId ? (nameOf.get(counterpartId) ?? null) : null,
+        importerOrgName: nameOf.get(c.importer_org_id) ?? "",
+        exporterOrgName: nameOf.get(c.exporter_org_id) ?? "",
+        checklistCompleteness: { verified: totals.visibleVerified, total: totals.visibleTotal },
+        openIssueCount: totals.openIssueItems,
+      };
+    });
   }, READ_ONLY_SNAPSHOT);
 }

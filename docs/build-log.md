@@ -335,3 +335,25 @@ Stage 2 code was read and reused. Build order follows the prompt: 1 (checklist e
 - Reads run in one repeatable-read, read-only transaction, so a view never mixes two moments.
 
 **Tests:** none yet for this stage (step 4). Stage 1 and 2 suites: 133 of 133 passing after the refactors. `tsc --noEmit` clean.
+
+---
+
+## 2026-09-19, Stage 3, Step 2: `GET /consignments`
+
+**Built**
+- `listConsignments(actingUser)` in `src/services/consignmentViews.ts`, and the route in `src/http/views.ts` returning `{ consignments: [...] }`.
+- Shared helpers for step 3: `totalsFor` (the visibility-filtered counts for one consignment's items) and `groupByConsignment`.
+
+**Behavior**
+- Consignments where the viewer's org is the importer or the exporter, newest first; every consignment for superadmin. Access is by the viewer's stored org, and an inactive user is refused (403).
+- Each summary: `id`, `commodity`, `status`, `counterpartOrgName`, `importerOrgName`, `exporterOrgName`, `checklistCompleteness: { verified, total }`, `openIssueCount`.
+- **Completeness** uses the same set the checklist endpoint returns: every item the viewer can see (status_only and full), hidden items excluded from both numerator and denominator. A viewer never gets a count that references a document they cannot see.
+- **openIssueCount** counts items (not issues) that have an open or correction_requested issue and that the viewer can see at **full** view. A status_only or hidden item's issue does not count.
+- Data is fetched in a fixed number of queries regardless of how many consignments there are (consignments, org names, all items, all unresolved issues), with permissions resolved once through the bulk resolver from step 1.
+
+**Decisions not fully specified in the prompt**
+- `counterpartOrgName` is the org on the other side from the viewer. Superadmin has no side, so it is `null` for them, and `importerOrgName` and `exporterOrgName` are always included so their view is still readable.
+- `openIssueCount` counts **items with an unresolved issue**, not issues. That matches the prompt's wording ("count of items with an open or correction_requested issue") and keeps the number consistent with the checklist, which shows one issue per item. Step 3 uses the same definition so the two endpoints never disagree.
+- Not paginated: one org's consignments are expected to be few during the trial. Add paging before that stops being true.
+
+**Tests:** none yet for this stage (step 4). `tsc --noEmit` clean.

@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { getConsignmentChecklist } from "../services/consignmentViews.js";
+import { getConsignmentChecklist, listConsignments } from "../services/consignmentViews.js";
 import { resolveActingUser, type ActorOptions } from "./actor.js";
 
 /**
@@ -10,6 +10,12 @@ import { resolveActingUser, type ActorOptions } from "./actor.js";
 export const viewRoutes: FastifyPluginAsync<ActorOptions> = async (app, options) => {
   const actorFor = (request: Parameters<typeof resolveActingUser>[0]) =>
     resolveActingUser(request, options.allowDevActorHeader ?? false);
+
+  app.get("/consignments", async (request, reply) => {
+    const actingUser = await actorFor(request);
+    if (!actingUser) return reply.code(401).send({ error: "unauthenticated" });
+    return { consignments: await listConsignments(actingUser) };
+  });
 
   app.get<{ Params: { consignmentId: string } }>("/consignments/:consignmentId/checklist", async (request, reply) => {
     const actingUser = await actorFor(request);
