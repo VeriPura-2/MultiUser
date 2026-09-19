@@ -10,8 +10,8 @@ Keep this file short and current. It must stay under about 250 lines because it 
 Update it when the state changes. Do not turn it into a second build log.
 
 Last updated: 2026-09-19
-Tests passing: 393
-Stages complete: 3 of 3 backend prompts, and UI-1 (API surface for the UI). UI-2 (the web app) in progress, step 1 of 7. UI-3 (vessel tracking) and Prompt 4 (Stripe) not started.
+Tests passing: 458
+Stages complete: 3 of 3 backend prompts, and UI-1 (API surface for the UI). UI-2 (the web app) in progress, step 2 of 7 done. UI-3 (vessel tracking) and Prompt 4 (Stripe) not started.
 
 ## Standing rules (Thomas's, apply to every session)
 
@@ -105,7 +105,7 @@ All dates 2026-09-19. Hashes are the pushed ones (history was corrected twice be
 | Project memory, step 1 | `CLAUDE.md`, this file restructured, `BUILD_PROMPTS.md` (the original spec) | `0ec6e2e` |
 | Project memory, step 2 | The enforcement: `scripts/memory-check.mjs`, the git pre-commit hook, the Claude Code Stop hook, 36 tests of the enforcement itself (206 total) | `74bbb58` |
 | Project memory, step 3 | `/pickup` and `/wrapup` commands, `resume.ps1`, the `veripura` PowerShell command, README section, thin auto-memory pointers | `c5aae93` |
-| UI-2: the web app (in progress) | Step 1: app shell, tokens, theme, fonts, shared components, API client, dev user switcher, auth gate (66 web tests) | see `git log` |
+| UI-2: the web app (in progress) | Step 1: app shell, tokens, theme, fonts, shared components, API client, dev user switcher, auth gate (66 web tests). Step 2: dashboard (stats, attention band, action queue, consignment list, Leaflet map on sample positions), plus `originCountry`/`destinationCountry` on `GET /consignments` (458 tests total) | see `git log` |
 | UI-1: API surface for the UI | All eight items: `AUTH_MODE=dev` and `GET /me`, `npm run seed:dev`, consignment detail, action queue, issue detail and actions, org directory and superadmin approval, multipart `POST /consignments`, and an end-to-end journey test (324 tests total). Verified against the real server on port 3100. | see `git log` |
 
 Key decisions (full reasoning in the build log): 404 not 403 for non-parties; a bulk permission
@@ -116,6 +116,8 @@ paths share `applyChecklist`; a failed core send keeps the PO and is retryable.
 
 ## Open items
 
+- **Decision for Thomas: the map's tile provider.** CARTO's own server now answers the spec'd tile URLs (`rastertiles/voyager` and `dark_all`) with tiles watermarked "API KEY REQUIRED carto.com/basemaps/apikey" (HTTP 200; fetched directly and seen in the browser, both themes). It is the provider, not the app. The offline land fallback sits underneath and is hidden by the watermarked tiles. Options: get a CARTO key, switch provider (all provider details are in `web/src/map/tiles.ts`, one file), or show only the bundled land map with no tiles. Not changed, because the spec says no paid key and the choice is yours.
+- **Step 2's mutation check did not complete.** The system stopped the run for low memory after about 15 of 28 mutants and the results were not kept; one mutant (the attention band's zero guard) was left in place and has been restored, and the suite is green. Re-run it when memory allows (the mutant list is described in the build log entry).
 - **Decision for Thomas: `POST /purchase-orders` returns 500 for a malformed `exporterOrgId`.** Found while building UI-1 step 6, where the same mistake (a malformed id reaching Postgres) was fixed in new code. Existing routes were probed: the checklist, consignment detail, issue, workload, and admin routes all return a clean 404 or 400. Only this stage 2 route does not, because `submitPurchaseOrder` runs an unvalidated id through a query. The fix is small (validate ids in `submitPurchaseOrder`, giving a 400) and changes only that route's status from 500 to 400. Not changed, per the ask-before-pattern-fix rule. The new `POST /consignments` endpoint validates its ids.
 - **Decision for Thomas: invented document categories.** The older `npm run db:seed` gives the four stub document types the categories "Customs & logistics" and "Certifications", which nobody confirmed. UI-1 says to invent none, and UI-2 groups the roadmap by category, so on a database seeded with `db:seed` the UI would show those as real. `seed:dev` leaves existing rows alone. To follow UI-1 exactly: null the categories in the dev database and drop them from `scripts/seed.ts`.
 - **Real sign-in** replaces the `X-Acting-User-Id` dev header (off by default). Fail closed for deactivated users and suspended orgs belongs there.
@@ -130,7 +132,7 @@ paths share `applyChecklist`; a failed core send keeps the PO and is retryable.
 
 ## Next work
 
-1. **UI-2** (the React web app), from `docs/veripura-cli-ui-prompts.md`, steps 2 to 7 remaining (dashboard with the Leaflet map, roadmap, issue, intake, superadmin approval, final tests and the visual comparison against the PNG previews). Then **UI-3** (vessel tracking, from the same file). The mockups are in `docs/ui-mockups/v2-revised/` (untracked, Thomas's design inputs).
+1. **UI-2** (the React web app), from `docs/veripura-cli-ui-prompts.md`, steps 3 to 7 remaining (roadmap, issue, intake, superadmin approval, final tests and the visual comparison against the PNG previews). Dashboard links already point at `/consignments/:id` (roadmap, step 3) and `/issues/:id` (step 4), which are not routed yet. Then **UI-3** (vessel tracking, from the same file). The mockups are in `docs/ui-mockups/v2-revised/` (untracked, Thomas's design inputs).
 2. Prompt 4 (Stripe billing): create a customer on org approval, a checkout and subscription
    flow, a webhook keeping `billing_status` in sync, and deliberately no access enforcement yet.
    Columns already exist. Description in `docs/BUILD_PROMPTS.md`, notes section.

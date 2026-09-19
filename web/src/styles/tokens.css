@@ -44,6 +44,19 @@ html.dark{
   --scrim:rgba(0,0,0,.45); /* the dimmed layer behind a modal dialog */
 }
 
+/* Map furniture. The mockup hard-codes these next to the map; they differ by theme, so they are
+   tokens here. The dark values are the mockup's dark attribution colours. */
+:root{
+  --map-ring-shadow:rgba(0,0,0,.35);   /* thin outline around a vessel marker */
+  --map-stale-fill:rgba(255,255,255,.85); /* inside the hollow "no recent position" marker */
+  --attr-bg:rgba(255,255,255,.85); --attr-ink:#333333; --attr-link:#8F6A08;
+}
+html.dark{
+  --map-ring-shadow:rgba(0,0,0,.35);
+  --map-stale-fill:rgba(40,42,46,.85);
+  --attr-bg:rgba(40,42,46,.85); --attr-ink:#D8DADF; --attr-link:#E6C56A;
+}
+
 /* Type. Fonts are bundled with the app (see main.tsx) rather than loaded from a CDN. */
 :root{
   --font-display:"DM Serif Display", Georgia, serif;

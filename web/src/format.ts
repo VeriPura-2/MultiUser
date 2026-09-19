@@ -38,3 +38,20 @@ export function initials(text: string): string {
   const letters = words.length >= 2 ? words[0]![0]! + words[1]![0]! : (words[0] ?? "?").slice(0, 2);
   return letters.toUpperCase();
 }
+
+const regionNames = typeof Intl !== "undefined" && "DisplayNames" in Intl ? new Intl.DisplayNames(["en"], { type: "region" }) : null;
+
+/** "Brazil" from "BR". Anything that is not a two-letter code is shown as it was entered. */
+export function countryName(code: string): string {
+  if (!/^[A-Za-z]{2}$/.test(code)) return code;
+  try {
+    return regionNames?.of(code.toUpperCase()) ?? code;
+  } catch {
+    return code;
+  }
+}
+
+/** "1 issue", "2 issues". */
+export function count(n: number, singular: string, plural = `${singular}s`): string {
+  return `${n} ${n === 1 ? singular : plural}`;
+}

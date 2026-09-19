@@ -257,6 +257,9 @@ export interface ConsignmentSummary {
   counterpartOrgName: string | null;
   importerOrgName: string;
   exporterOrgName: string;
+  /** Where the goods start and end, for the dashboard's route column. */
+  originCountry: string;
+  destinationCountry: string;
   /** verified items over all items the viewer can see (status_only and full; hidden excluded). */
   checklistCompleteness: { verified: number; total: number };
   /** Items with an open or correction_requested issue that the viewer can see at full view. */
@@ -342,6 +345,8 @@ export async function listConsignments(actingUser: UserRef): Promise<Consignment
         counterpartOrgName: counterpartId ? (nameOf.get(counterpartId) ?? null) : null,
         importerOrgName: nameOf.get(c.importer_org_id) ?? "",
         exporterOrgName: nameOf.get(c.exporter_org_id) ?? "",
+        originCountry: c.origin_country,
+        destinationCountry: c.destination_country,
         checklistCompleteness: { verified: totals.visibleVerified, total: totals.visibleTotal },
         openIssueCount: totals.openIssueItems,
       };

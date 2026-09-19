@@ -19,7 +19,7 @@
 .page-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px; gap:12px; flex-wrap:wrap;}
 .page-head h1{font-size:31px; margin:0;}
 .page-head .actions{display:flex; align-items:center; gap:10px;}
-.page-sub{font-family:var(--font-ui); color:var(--charcoal-soft); font-weight:500; font-size:16px; margin:0 0 26px;}
+.page-sub{font-family:var(--font-ui); color:var(--charcoal-soft); font-weight:500; font-size:16px; margin:0 0 26px; min-height:1.5em;}
 
 /* Top-bar layout used by the superadmin console. */
 .topbar{background:var(--nav-top); color:var(--nav-ink); padding:16px 32px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;}

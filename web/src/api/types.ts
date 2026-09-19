@@ -45,6 +45,8 @@ export interface ConsignmentSummary {
   counterpartOrgName: string | null;
   importerOrgName: string;
   exporterOrgName: string;
+  originCountry: string;
+  destinationCountry: string;
   checklistCompleteness: { verified: number; total: number };
   openIssueCount: number;
 }
@@ -59,6 +61,16 @@ export interface ConsignmentDetail {
   importerOrg: { id: string; name: string };
   exporterOrg: { id: string; name: string };
   createdAt: string;
+}
+
+export interface PartyWorkloadResponse {
+  orgId: string;
+  counterparties: PartyWorkloadRow[];
+}
+
+export interface ActionQueueResponse {
+  orgId: string;
+  items: ActionQueueItem[];
 }
 
 export interface PartyWorkloadRow {

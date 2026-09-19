@@ -1,0 +1,41 @@
+/* The map and its markers. Leaflet's own stylesheet supplies the structural rules; this file
+   themes it with the app's tokens, from the Dashboard mockup. */
+
+.map-frame{position:relative;}
+.map{height:400px; background:var(--map-sea); font-family:var(--font-ui);}
+.leaflet-container{background:var(--map-sea); font-family:var(--font-ui);}
+
+/* Fallback land, drawn from bundled data underneath the tiles. */
+.landfb{fill:var(--map-land); stroke:var(--map-land-line); stroke-width:.6; fill-opacity:1;}
+
+/* Routes */
+.rt{fill:none; stroke-width:2; stroke-linecap:round; transition:opacity .2s;}
+.rt-issue{stroke:var(--solid-red);}
+.rt-ok{stroke:var(--solid-green);}
+.rt-done{stroke:var(--gray);}
+
+/* Vessel markers. The hollow dashed one is a position that is not recent. */
+.vdot{position:relative; width:16px; height:16px; border-radius:50%; border:2.5px solid var(--on-solid); box-shadow:0 0 0 1px var(--map-ring-shadow); box-sizing:border-box;}
+.vdot.v-issue{background:var(--solid-red); color:var(--solid-red);}
+.vdot.v-ok{background:var(--solid-green); color:var(--solid-green);}
+.vdot.v-done{background:var(--gray); color:transparent;}
+.vdot.stale{background:var(--map-stale-fill); border:3px dashed var(--solid-red); box-shadow:none; color:transparent;}
+.vdot::after{content:""; position:absolute; inset:-4px; border-radius:50%; border:2px solid currentColor; opacity:0; animation:vp-pulse 2.4s ease-out infinite;}
+@keyframes vp-pulse{0%{transform:scale(.6); opacity:.8;} 100%{transform:scale(2.4); opacity:0;}}
+
+.leaflet-tooltip.vlabel{background:var(--paper); color:var(--charcoal); border:1px solid var(--line); font-size:14px; font-weight:700; padding:2px 7px; box-shadow:none;}
+.leaflet-tooltip.vlabel::before{display:none;}
+
+/* Zoom buttons: larger targets, themed. */
+.leaflet-bar{border:1px solid var(--line); box-shadow:none;}
+.leaflet-bar a,.leaflet-bar a:hover,.leaflet-bar a:focus{width:34px; height:34px; line-height:34px; font-size:20px; background-color:var(--paper); color:var(--charcoal); border-bottom-color:var(--line);}
+.leaflet-bar a:hover,.leaflet-bar a:focus{background-color:var(--recess);}
+
+/* The tile provider's credit. Always visible, in the corner of the map. */
+.map-attribution{position:absolute; right:0; bottom:0; z-index:1000; margin:0; padding:2px 8px; font-family:var(--font-ui); font-size:14px; line-height:1.5; background:var(--attr-bg); color:var(--attr-ink); max-width:100%;}
+.map-attribution a{color:var(--attr-link); text-decoration:underline;}
+
+@media (prefers-reduced-motion: reduce){
+  .vdot::after{animation:none;}
+  .rt{transition:none;}
+}
