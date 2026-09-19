@@ -15,7 +15,9 @@
     "db:seed": "tsx scripts/seed.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts"
   },
   "dependencies": {
     "dotenv": "^18.0.1",

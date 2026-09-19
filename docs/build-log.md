@@ -212,3 +212,24 @@ Stage 1 code (`src/db`, `src/permissions`, `src/audit`, `src/services/organizati
 **Smoke check (before step 6's real tests):** ran the app with `inject()` for no signature, wrong signature, signature over a different body, bad JSON, bad payload, unknown consignment, and no configured secret. All returned the codes above, and only the three authenticated failures were logged. The dev database rows it created were removed.
 
 **Tests:** none yet (step 6). `tsc --noEmit` clean.
+
+---
+
+## 2026-09-19, Stage 2, Step 2: PO submission flow
+
+**Built**
+- `src/services/consignments.ts`: `submitPurchaseOrder({ importerOrgId, exporterOrgId, commodity, hsCode?, originCountry, destinationCountry, fileBuffer, fileName, actingUser })`.
+- `src/storage/fileStorage.ts`: the `FileStorage` interface and `uploadFile(buffer, filename): Promise<string>` entry point the prompt asked for. Default `LocalFileStorage` writes to `STORAGE_DIR` (default `.storage/`, gitignored) and returns a `local://` key; `InMemoryFileStorage` for tests; `setFileStorage()` is the swap point for S3/GCS. Filenames are reduced to a safe basename.
+- `src/services/actors.ts`: `loadActiveActor`.
+- `src/http/purchaseOrders.ts`: `POST /purchase-orders`, a thin wrapper. `src/http/app.ts` gains a central error handler (permission 403, not found 404, validation 400, core failure 502 with the saved consignment id). `src/server.ts` (`npm run dev` / `npm start`), bound to 127.0.0.1 only.
+
+**Flow:** authorize, validate, upload file, one transaction (consignment `po_submitted` + `purchase_orders` row + audit `consignment.po_submitted`), then `sendToVeriPuraCore` (status to `checklist_pending`, outbound webhook event), then, if the client returned a checklist (the stub does), `applyChecklist` (status to `checklist_received`, checklist items, inbound event, audit `consignment.checklist_received`). Returns the final consignment row.
+
+**Decisions not fully specified in the prompt**
+- Authorization is checked first, before any organization lookup, so an unauthorized caller cannot learn which orgs exist. Actor must be superadmin or an active user whose stored `organization_id` equals `importerOrgId`. The actor's row is re-read from the database, so the stored org and status are used, not whatever the caller-supplied reference claimed.
+- The importer org must be an active `importer`-type org and the exporter org an active `exporter`-type org, and they must differ (also enforced by a table CHECK). The prompt did not say to validate org types; without it a logistics org could be named as an exporter.
+- The PO file is uploaded before the database transaction (storage is an external side effect). If the transaction then fails, an orphaned file remains in storage. Acceptable for now, since cleanup belongs with the real storage backend.
+- If core is unreachable: the PO and consignment are kept in `po_submitted`, the failed call is logged, and `VeriPuraCoreError` (HTTP 502) carrying the consignment id is thrown. The caller retries by calling `sendToVeriPuraCore` again. No automatic retry yet.
+- **HTTP layer and authentication:** the prompt says sign-in is out of scope and `actingUser` is resolved upstream. `POST /purchase-orders` therefore returns 401 unless `ALLOW_DEV_ACTOR_HEADER=true`, in which case it trusts an `X-Acting-User-Id` header. That is a sandbox stand-in, off by default (the `.env.example` value is `false`), and must be replaced by real middleware before anything is exposed. The PO file travels as base64 in JSON (`fileName`, `fileBase64`) rather than multipart, keeping the layer thin; the service takes a Buffer either way.
+
+**Tests:** none yet (step 6). `tsc --noEmit` clean.
