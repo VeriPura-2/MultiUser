@@ -995,3 +995,34 @@ Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-3 (five numbered steps), as
 - **Sandbox data left behind:** three consignments in the local sandbox database now carry made-up vessels (IMO numbers in the unissued 1000000 range, MMSI prefix 999), with sample positions, a manual refresh run, and some back-dated positions added through the app's own ingestion so a trail could be seen. Nothing outside the sandbox was touched.
 
 **Not in this step:** `docs/tracking.md` and the final test pass (step 5).
+
+## 2026-09-19, UI-3 step 5: tests, and docs/tracking.md
+
+**The prompt's test list, and where each item is covered.** Every item was tested with the step it belongs to; this step checked the list against the suite, added the one guard that was missing, and wrote the documentation.
+- IMO check digit and MMSI validation, valid, invalid and blank: `tests/vesselIdentifiers.test.ts` (every wrong check digit, each weight, only the last digit of the sum, lengths, leading zeros, blank clears), plus the web form's copy in `web/tests/vessel.test.ts` and `tests/vesselIdentifierParity.test.ts`, which runs both over the same inputs.
+- PATCH writes an audit entry and is permission scoped: `tests/vesselIdentifiers.test.ts` (old and new values recorded, no audit for a no-op, importer and superadmin allowed, exporter 403, stranger and malformed id the same 404, permission before validation).
+- `GET /positions` never returns a consignment the user cannot see: `tests/positions.test.ts` (each party, a stranger sees an empty list with no coordinates or ids anywhere, two importers on one ship, superadmin, the identical 404 on the single endpoint, and the service checked directly).
+- Freshness at the threshold boundaries: `tests/positions.test.ts` (exactly the threshold is recent, one second more is stale, and the threshold is configuration).
+- Provider validation drops bad positions: `tests/trackingProvider.test.ts` (the edges of every range, the one-minute future limit exactly, unreadable times, identifiers, a count logged and never the contents).
+- The live provider refuses to start unless `AIS_LIVE_ALLOWED` is true: `tests/vesselApiProvider.test.ts` (unset, empty, false, and malformed values, and a key still being required once allowed).
+- The call budget blocks a call when used plus reserve would exceed it, resets on a new calendar month, and counts failed calls: `tests/trackingBudget.test.ts` (at the boundary, month boundary in UTC, 500s, timeouts and unfinished calls counted, no overspending under 30 simultaneous callers).
+- A 429 triggers back-off: `tests/trackingBudget.test.ts` and `tests/vesselApiProvider.test.ts` (recorded, no request while it runs, doubling and cap, `Retry-After`, surviving a restart).
+- The refresh does nothing without vessel identifiers and never exceeds the daily allowance: `tests/trackingRefresh.test.ts` (no request, no ledger row, no run; and a 30-day simulation where a scheduled run each day never exceeds a day's allowance or the budget less the reserve).
+- Loading the dashboard makes zero provider calls: `tests/positions.test.ts` (every read the dashboard makes, three rounds, against a live provider on a fake network: no request, no ledger row) and `web/tests/map.test.tsx` (the browser only ever calls `/api`).
+- No key in logs or responses: `tests/vesselApiProvider.test.ts` and `tests/positions.test.ts` (a provider that echoes the key in its error body, then every message, log line, ledger row, run row and response, as several users, searched for it).
+- Ingestion deduplicates: `tests/trackingRefresh.test.ts` and the database's own unique indexes in `tests/vesselIdentifiers.test.ts`.
+- The frontend renders a hollow marker for stale, no marker for unavailable, and the right flag for sample and live: `web/tests/map.test.tsx` and `web/tests/mapModel.test.ts`.
+
+**Added: a guard that no test can touch the network.** Until now the tests avoided the network by convention (each injected its own fake fetch). Both suites now replace the global `fetch` with one that refuses before every test, so code that reaches for it by default (a live core client, a live position provider) fails loudly instead of calling out. A test proves it in each suite, including that a live provider built with no fake of its own fails as a counted network error and never reaches out. Mutation-checked: removing the guard, or making it stop refusing, fails those tests (four mutants, all caught).
+
+**Documentation.** `docs/tracking.md` (new): how the pieces fit, the provider interface, every environment variable with its default, the call budget rules, what the map shows, the coverage limits (terrestrial AIS reaches about 40 to 60 km offshore, a position is only as fresh as the last refresh, satellite is never requested), and the decisions needed before live data is turned on for customers (commercial-use terms, a paid plan, satellite, verifying how a batch is counted, who may enter the vessel, where the key lives, turning it on deliberately, and the map tiles). The README's route table lists the new routes.
+
+**Results**
+- Backend 529, web 294. **Total: 823**, confirmed by `node scripts/memory-check.mjs --full`. `tsc --noEmit` clean in both packages; `vite build` clean.
+- **UI-3 status: complete.** Provider calls happen only in the budgeted refresh job; nothing that serves a request can cause one; nothing live has ever been called (there is no key in this sandbox); the sample provider is the default everywhere and a live one needs `AIS_LIVE_ALLOWED=true`.
+
+**Mutation checks across UI-3: 73 + 32 + 46 + 28 + 4 = 183 mutants, all caught in the end,** each survivor closed by a code fix or a new test (they are listed in each step's entry). None needed a restart after a memory stop.
+
+**What UI-3 did not do, by the prompt's exclusions:** the VesselAPI plan was not upgraded, no satellite AIS, no AISStream client, no ETA prediction, no port geofencing or arrival alerts, no container tracking, no AI extraction of vessel details, and no paid provider integration.
+
+**Still open (also in `docs/PROJECT_MEMORY.md`):** the map tiles' "API KEY REQUIRED" watermark; the incomplete mutation checks for UI-2 steps 2 and 5; the UI-3 decisions listed in step 2 (the reserve, who may set a vessel, how VesselAPI counts a batch); a real-browser look at the new map states (the extension refused the tab in step 4); and the earlier open items.

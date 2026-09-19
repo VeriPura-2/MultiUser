@@ -10,8 +10,8 @@ Keep this file short and current. It must stay under about 250 lines because it 
 Update it when the state changes. Do not turn it into a second build log.
 
 Last updated: 2026-09-19
-Tests passing: 820
-Stages complete: 3 of 3 backend prompts, and UI-1 (API surface for the UI). UI-2 (the web app) complete (all seven steps). UI-3 (vessel tracking) in progress, step 4 of 5 done. Prompt 4 (Stripe) not started.
+Tests passing: 823
+Stages complete: 3 of 3 backend prompts, and UI-1 (API surface for the UI). UI-2 (the web app) complete (all seven steps). UI-3 (vessel tracking) complete (all five steps). Prompt 4 (Stripe) not started.
 
 ## Standing rules (Thomas's, apply to every session)
 
@@ -106,7 +106,7 @@ All dates 2026-09-19. Hashes are the pushed ones (history was corrected twice be
 | Project memory, step 2 | The enforcement: `scripts/memory-check.mjs`, the git pre-commit hook, the Claude Code Stop hook, 36 tests of the enforcement itself (206 total) | `74bbb58` |
 | Project memory, step 3 | `/pickup` and `/wrapup` commands, `resume.ps1`, the `veripura` PowerShell command, README section, thin auto-memory pointers | `c5aae93` |
 | UI-2: the web app (complete) | Step 1: app shell, tokens, theme, fonts, shared components, API client, dev user switcher, auth gate (66 web tests). Step 2: dashboard (stats, attention band, action queue, consignment list, Leaflet map on sample positions), plus `originCountry`/`destinationCountry` on `GET /consignments` (458 tests total). Step 3: roadmap at `/consignments/:id` (grouped by API category, buttons from the permission flags), plus `issueId` on a checklist item's open issue (487 tests total). Step 4: issue screen with request-correction and resolve dialogs (520 tests total). Step 5: intake (purchase order upload, exporter and country selects, handles the saved-but-502 case) and the dashboard's New Consignment link (547 tests total). Step 6: superadmin org approval (queue, detail, permission table from the API, confirm dialogs) (574 tests total). Step 7: coverage against the prompt's list, the hidden-item test, and a real-browser comparison of every screen in both themes (575 tests total) | see `git log` |
-| UI-3: vessel tracking (in progress) | Step 1: vessel identifiers on consignments (IMO check digit, MMSI, name; 422 on bad values), `PATCH /consignments/:id/vessel` with an audit row, `vessel_positions` table (608 tests total). Step 2: position provider interface, sample and VesselAPI providers, the call-budget ledger, the refresh job, ingestion and pruning, `POST /admin/positions/refresh` (719 tests total). Step 3: `GET /positions`, `GET /consignments/:id/position` (freshness, sample flag, 24-hour trail), `GET /admin/tracking/budget`; reads never reach a provider (765 tests total). Step 4: the dashboard map fed by `GET /positions` (freshness markers, trails, flags, no planned route), vessel on the roadmap header and the intake form, identifier-rule parity test (820 tests total) | see `git log` |
+| UI-3: vessel tracking (complete) | Step 1: vessel identifiers on consignments (IMO check digit, MMSI, name; 422 on bad values), `PATCH /consignments/:id/vessel` with an audit row, `vessel_positions` table (608 tests total). Step 2: position provider interface, sample and VesselAPI providers, the call-budget ledger, the refresh job, ingestion and pruning, `POST /admin/positions/refresh` (719 tests total). Step 3: `GET /positions`, `GET /consignments/:id/position` (freshness, sample flag, 24-hour trail), `GET /admin/tracking/budget`; reads never reach a provider (765 tests total). Step 4: the dashboard map fed by `GET /positions` (freshness markers, trails, flags, no planned route), vessel on the roadmap header and the intake form, identifier-rule parity test (820 tests total). Step 5: the no-network guard in both suites, `docs/tracking.md` (823 tests total) | see `git log` |
 | UI-1: API surface for the UI | All eight items: `AUTH_MODE=dev` and `GET /me`, `npm run seed:dev`, consignment detail, action queue, issue detail and actions, org directory and superadmin approval, multipart `POST /consignments`, and an end-to-end journey test (324 tests total). Verified against the real server on port 3100. | see `git log` |
 
 Key decisions (full reasoning in the build log): 404 not 403 for non-parties; a bulk permission
@@ -134,7 +134,7 @@ paths share `applyChecklist`; a failed core send keeps the PO and is retryable.
 
 ## Next work
 
-1. **UI-2 is complete.** Next is **UI-3** (vessel tracking, from `docs/veripura-cli-ui-prompts.md`; Thomas has since rewritten it around VesselAPI with a 150-call monthly budget). Before it: decide the map's tile provider (see Open items), since UI-3 puts real positions on that map. The mockups are in `docs/ui-mockups/v2-revised/` (untracked, Thomas's design inputs).
+1. **UI-2 and UI-3 are complete.** Vessel tracking, its call budget, its env variables and what must be decided before live data reaches customers are in `docs/tracking.md`. Nothing live has ever been called (no key in the sandbox); the sample provider is the default. Before customers: the decisions in Open items, and the tile provider.
 2. Prompt 4 (Stripe billing): create a customer on org approval, a checkout and subscription
    flow, a webhook keeping `billing_status` in sync, and deliberately no access enforcement yet.
    Columns already exist. Description in `docs/BUILD_PROMPTS.md`, notes section.

@@ -12,7 +12,17 @@ if (typeof SVGElement !== "undefined" && !("createSVGRect" in SVGElement.prototy
   Object.defineProperty(SVGElement.prototype, "createSVGRect", { value: () => ({}) });
 }
 
+/**
+ * No test may touch the network. The global fetch refuses before every test, so anything that
+ * reaches for it by default fails loudly instead of calling out. A test that needs an API installs
+ * the mocked one (tests/mockApi.ts), which replaces this. (tests/noNetwork.test.ts proves it.)
+ */
+const blockedFetch = (async () => {
+  throw new Error("Network access is not allowed in tests");
+}) as unknown as typeof fetch;
+
 beforeEach(() => {
+  vi.stubGlobal("fetch", blockedFetch);
   localStorage.clear();
   document.documentElement.classList.remove("dark");
 });
