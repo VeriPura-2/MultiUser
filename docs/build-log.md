@@ -304,3 +304,9 @@ Stage 1 code (`src/db`, `src/permissions`, `src/audit`, `src/services/organizati
 **Correction:** two design source documents that were already in this folder before the build began (`trade_compliance_control_tower_design.pdf`, `Veripura_Comparison_Two_Product_Architecture_Documents.docx`) had been committed by accident. They were unstaged in the very first commit, then swept back in by a later blanket `git add -A`. They are internal design documents that nobody asked to publish, so before the first push they were removed from every local commit (a one-off `git filter-branch` on the unpushed `main`) and added to `.gitignore`. The files themselves are unchanged on disk, verified byte for byte against the copies in history. As a result the commit hashes for steps 2 onward differ from any earlier notes; the content of every commit is otherwise identical. Nothing had been pushed, so no shared history was rewritten.
 
 **Lesson recorded:** stage explicit paths, not `git add -A`, in a folder that holds files the repo does not own.
+
+---
+
+## 2026-09-19, Repository: commit identity
+
+The first push to `origin` was declined by GitHub (GH007, private email protection), because commits carried the global git identity's personal email. Before anything was published, the 14 local commits were re-authored to the account's GitHub noreply address, and this repository's *local* git config now sets that address (the global config is untouched). File contents were verified identical before and after by comparing tree hashes. `main` was then pushed to `origin` for the first time. Anyone committing from another machine needs the same local setting, or a push will be declined the same way.
