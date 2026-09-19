@@ -233,3 +233,26 @@ Stage 1 code (`src/db`, `src/permissions`, `src/audit`, `src/services/organizati
 - **HTTP layer and authentication:** the prompt says sign-in is out of scope and `actingUser` is resolved upstream. `POST /purchase-orders` therefore returns 401 unless `ALLOW_DEV_ACTOR_HEADER=true`, in which case it trusts an `X-Acting-User-Id` header. That is a sandbox stand-in, off by default (the `.env.example` value is `false`), and must be replaced by real middleware before anything is exposed. The PO file travels as base64 in JSON (`fileName`, `fileBase64`) rather than multipart, keeping the layer thin; the service takes a Buffer either way.
 
 **Tests:** none yet (step 6). `tsc --noEmit` clean.
+
+---
+
+## 2026-09-19, Stage 2, Step 5: Issues service layer
+
+**Built**
+- `src/services/issues.ts`: `raiseIssue`, `requestCorrection`, `resolveIssue`. `src/index.ts` now also exports the stage 2 modules.
+
+**Behavior**
+- `raiseIssue({ documentChecklistItemId, problem, expectedValue, foundValue, sourceChecklistItemId, responsibleOrgType, actingUser })`: inserts an `open` issue, sets the checklist item to `flagged`. Audit `issue.raised`.
+- `requestCorrection({ issueId, message, actingUser })`: sets `correction_requested`, message in audit metadata. Audit `issue.correction_requested`.
+- `resolveIssue({ issueId, actingUser })`: sets `resolved` and `resolved_at`, moves the item back to `pending` (never `verified`). Audit `issue.resolved`.
+- Permission for all three: superadmin, or an **active** user whose org is the importer or exporter on the issue's consignment. Anyone else gets `PermissionDeniedError`. The actor's stored row is re-read, so a caller-supplied org id cannot widen access.
+
+**Decisions not fully specified in the prompt**
+- **Tighten later, as the prompt asked:** the permission check is deliberately permissive because no automated validator or dedicated reviewer role exists yet. It should move to a specific role (likely Compliance Manager) or a system actor once a real validation engine exists. This is also recorded in the code comment on `authorizeForConsignment`.
+- Resolving an issue only sets the item to `pending` when no other unresolved issue remains on that item. If others remain the item stays `flagged`. The prompt's wording ("sets the item back to pending") would otherwise let the convenience status contradict the issues table, which the prompt itself calls the source of truth.
+- Known wart, not fixed: an item that was `awaiting_upload` when flagged becomes `pending` once resolved, which implies an upload that may not have happened. The prompt specifies `pending`, and document upload does not exist yet. The pre-flag status is stored in the `issue.raised` audit metadata (`item_status_before`) so a later stage can restore it properly.
+- `requestCorrection` on an issue already in `correction_requested` is allowed (a reminder); on a `resolved` issue it is a `ValidationError`. Resolving an already resolved issue is a `ValidationError`, with no duplicate audit row.
+- `sourceChecklistItemId` must be a different item on the same consignment (also a CHECK for the self-reference case).
+- Concurrency: each operation locks the checklist item row first, then the issue, everywhere, so concurrent raise/resolve on one item serialize and cannot deadlock or race on the item's status.
+
+**Tests:** none yet (step 6). `tsc --noEmit` clean.
