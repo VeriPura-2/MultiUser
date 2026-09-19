@@ -1,0 +1,22 @@
+/* Base rules, taken from the mockups. Colour comes only from tokens.css. Nothing is under 14px. */
+
+*{box-sizing:border-box;}
+html{color-scheme:light;}
+html.dark{color-scheme:dark;}
+body{margin:0; background:var(--ivory); color:var(--charcoal); font-family:var(--font-serif); font-weight:500;}
+h1,h2,h3,.display{font-family:var(--font-display); font-weight:400;}
+a{color:inherit; text-decoration:none;}
+button,.btn,input,textarea,select{font-family:var(--font-ui);}
+button{cursor:pointer;}
+input,textarea,select{color:var(--charcoal); background:var(--paper);}
+label{font-family:var(--font-ui); font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--charcoal-soft); display:block; margin-bottom:6px;}
+
+/* Visible focus for everything that can take it. */
+:focus-visible{outline:2px solid var(--gold); outline-offset:2px;}
+
+.sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;}
+
+/* Respect the user's motion preference everywhere, not only on the map. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none !important; transition:none !important; scroll-behavior:auto !important;}
+}

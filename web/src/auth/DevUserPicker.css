@@ -1,0 +1,5 @@
+.picker{max-width:640px;}
+.picker h1{font-size:29px; margin:0 0 6px;}
+.picker-list{display:flex; flex-direction:column; gap:10px;}
+.picker-item{border-radius:6px;}
+.picker-item button{display:block; width:100%; text-align:left; background:none; border:0; color:var(--charcoal); padding:14px 18px; font-family:var(--font-ui); font-size:16px;}

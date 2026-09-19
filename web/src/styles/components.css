@@ -1,0 +1,60 @@
+/* Shared components. Values are the mockups', with anything under 14px raised to 14px. */
+
+.card{background:var(--paper); border:1px solid var(--line); border-radius:8px;}
+
+.badge{display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:3px; font-size:14px; letter-spacing:.02em; font-weight:700; font-family:var(--font-ui); white-space:nowrap;}
+.badge.green{background:var(--green-bg); color:var(--green);}
+.badge.gray{background:var(--gray-bg); color:var(--gray);}
+.badge.blue{background:var(--blue-bg); color:var(--blue);}
+.badge.red{background:var(--red-bg); color:var(--red);}
+
+/* Organization type. "tag" is the plain outline used in rows; "otag" is the coloured chip used on the superadmin screen. */
+.tag{font-family:var(--font-ui); font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:2px 7px; border-radius:3px; border:1px solid var(--line); color:var(--charcoal-soft); white-space:nowrap;}
+.otag{font-family:var(--font-mono); font-size:14px; font-weight:600; padding:3px 8px; border-radius:3px; letter-spacing:.02em; text-transform:uppercase; white-space:nowrap;}
+.otag.importer{background:var(--blue-bg); color:var(--blue);}
+.otag.exporter{background:var(--green-bg); color:var(--green);}
+.otag.logistics{background:var(--gray-bg); color:var(--charcoal-soft);}
+.otag.lab_cert{background:var(--purple-bg); color:var(--purple);}
+.otag.data_source{background:var(--amber-bg); color:var(--amber);}
+
+.themebtn{display:flex; align-items:center; gap:8px; background:var(--paper); border:1px solid var(--line); color:var(--charcoal); font-family:var(--font-ui); font-size:14px; font-weight:600; padding:8px 14px; border-radius:20px;}
+.themebtn.on-nav{background:var(--nav-active); border-color:var(--nav-line); color:var(--nav-ink); padding:7px 14px;}
+
+.btn{font-size:15px; font-weight:700; border-radius:5px; padding:10px 18px; border:1px solid var(--line); background:var(--paper); color:var(--charcoal); display:inline-block; text-align:center;}
+.btn.primary{background:var(--gold); border-color:var(--gold); color:var(--on-gold);}
+.btn.danger{background:var(--red-bg); border-color:var(--red-line); color:var(--red);}
+.btn.success{background:var(--solid-green); border-color:var(--solid-green); color:var(--on-solid);}
+.btn:disabled,button:disabled{opacity:.55; cursor:not-allowed;}
+
+/* A disabled control keeps a tooltip: browsers do not always show one on a disabled button, so it lives on the wrapper. */
+.tip{display:inline-block;}
+
+.stat-l{font-family:var(--font-ui); font-size:14px; color:var(--charcoal-soft); font-weight:500; text-transform:uppercase; letter-spacing:.06em;}
+
+.chip{font-family:var(--font-ui); font-size:14px; font-weight:600; padding:6px 12px; border-radius:20px; border:1px solid var(--line); background:var(--paper); color:var(--charcoal-soft);}
+.chip.on{background:var(--charcoal); color:var(--paper); border-color:var(--charcoal);}
+
+/* Loading skeleton */
+.skeleton{background:var(--recess); border-radius:5px; height:16px; animation:skeleton-pulse 1.4s ease-in-out infinite;}
+.skeleton + .skeleton{margin-top:10px;}
+@keyframes skeleton-pulse{50%{opacity:.5;}}
+
+/* Empty and error states */
+.state{padding:28px 24px; text-align:center; font-family:var(--font-ui);}
+.state h2,.state h3{font-size:20px; margin:0 0 6px;}
+.state p{margin:0; font-size:15px; color:var(--charcoal-soft);}
+.state .btn{margin-top:14px;}
+.state.error{border-color:var(--red-line); background:var(--red-bg);}
+.state.error h2,.state.error h3{color:var(--red);}
+
+/* Modal dialog */
+.modal-backdrop{position:fixed; inset:0; background:var(--scrim); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50;}
+.modal{background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:22px 24px; width:100%; max-width:480px; color:var(--charcoal);}
+.modal h2{font-size:21px; margin:0 0 12px;}
+.modal-actions{display:flex; gap:10px; justify-content:flex-end; margin-top:16px;}
+
+/* Form fields, as on the intake mockup */
+.field input,.field select,.field textarea{width:100%; font-family:var(--font-serif); font-size:17px; padding:11px 13px; border:1px solid var(--line); border-radius:5px;}
+.field textarea{font-size:16px; resize:vertical;}
+.field .hint{font-family:var(--font-ui); font-size:14px; color:var(--charcoal-soft); margin-top:6px;}
+.field .error-text{font-family:var(--font-ui); font-size:14px; color:var(--red); margin-top:6px;}

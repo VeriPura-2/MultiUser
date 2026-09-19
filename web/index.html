@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VeriPura</title>
+    <script>
+      // Apply the saved theme before first paint so there is no flash of the wrong theme.
+      // Same key and values as src/theme/theme.ts. Storage can throw (private windows), so guard it.
+      (function () {
+        try {
+          if (localStorage.getItem("vp-theme") === "dark") document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

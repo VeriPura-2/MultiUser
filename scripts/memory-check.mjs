@@ -50,6 +50,7 @@ const CODE_PATTERNS = [
   /^drizzle\.config\.ts$/,
   /^resume\.ps1$/,
   /^CLAUDE\.md$/,
+  /^web\//,
 ];
 const isCode = (file) => CODE_PATTERNS.some((p) => p.test(file));
 const isScanned = (file) => isCode(file) || /^docs\//.test(file) || file === "README.md";
@@ -235,12 +236,33 @@ function actualTestResult() {
       return { error: "MEMORY_CHECK_TEST_RESULT is not valid JSON" };
     }
   }
+  // The backend suite at the repo root, plus the web app's own suite if web/ exists. The count in
+  // the project memory is the total of both.
+  const suites = [{ name: "backend", cwd: root }];
+  if (existsSync(path.join(root, "web", "package.json"))) suites.push({ name: "web", cwd: path.join(root, "web") });
+
+  let passed = 0;
+  let failed = 0;
+  for (const suite of suites) {
+    if (suite.name === "web" && !existsSync(path.join(suite.cwd, "node_modules"))) {
+      return { error: "web/ dependencies are not installed. Run npm install inside web/." };
+    }
+    const result = runVitest(suite.cwd);
+    if (result.error) return { error: `${suite.name} suite: ${result.error}` };
+    passed += result.passed;
+    failed += result.failed;
+  }
+  return { passed, failed };
+}
+
+/** Runs one vitest suite in `cwd` and reads its JSON result from a temporary file. */
+function runVitest(cwd) {
   const dir = mkdtempSync(path.join(tmpdir(), "memcheck-"));
   const out = path.join(dir, "result.json");
   try {
     const cmd = process.platform === "win32" ? "npx.cmd" : "npx";
     const r = spawnSync(cmd, ["vitest", "run", "--reporter=json", `--outputFile=${out}`], {
-      cwd: root,
+      cwd,
       encoding: "utf8",
       shell: process.platform === "win32",
     });

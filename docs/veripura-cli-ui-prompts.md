@@ -1,6 +1,6 @@
 # VeriPura Platform: UI Build Prompts for Claude Code
 
-**Scope of this slice:** the web UI for the backend slice built by Prompts 1 to 3 (organizations, permission engine, audit log, PO intake, consignments, checklist, issues, party workload). Two prompts, run in order: UI-1 adds the small API surface the screens need, UI-2 builds the frontend against it. They are named UI-1 and UI-2 so they do not clash with the "Prompt 4" reserved for Stripe billing in the notes of the backend build prompts.
+**Scope of this slice:** the web UI for the backend slice built by Prompts 1 to 3 (organizations, permission engine, audit log, PO intake, consignments, checklist, issues, party workload). Three prompts, run in order: UI-1 adds the small API surface the screens need, UI-2 builds the frontend against it, and UI-3 adds vessel tracking (vessel identifiers, a position provider, and live positions on the dashboard map). They are named UI-1, UI-2 and UI-3 so they do not clash with the "Prompt 4" reserved for Stripe billing in the notes of the backend build prompts.
 
 Run these only after Prompts 1 to 3 are complete, the full test suite passes, and the repo has a working local sandbox. Each prompt is self-contained so it can be pasted into a fresh Claude Code session, but assumes the earlier code exists in the repo. Review the diff after each stage before moving to the next.
 
@@ -18,12 +18,13 @@ What in the mockups is deliberate, and what is not:
 
 - **Deliberate:** layout, spacing, type sizes (nothing under 14px), the light "paper and gold" theme, the neutral charcoal dark theme, badge and tag styles, the org-type colour coding, the action-queue pattern, the map-plus-queue arrangement on the dashboard.
 - **Placeholder:** every "Document name TBC" and "Category (name TBC)" string. The authoritative document list has not been confirmed. The real UI must never hard-code document names or categories, it must render whatever `document_types` holds (see UI-2). Only "Purchase Order" is a confirmed document.
-- **Sample data:** all consignment ids, party names, counts, batch numbers, and the vessel positions on the map.
+- **Sample data:** all consignment ids, party names, counts, batch numbers, and the vessel positions and "last position" times on the map.
+- **The map:** the HTML mockup uses Leaflet 1.9.4 with CARTO basemap tiles (dark_all for the dark theme, rastertiles/voyager for the light theme), built on OpenStreetMap data, the same approach as the reference control-tower dashboard. The tiles need internet access. The PNG previews were rendered without it, so they show the offline land fallback layer (Natural Earth) instead of tiles. Open `Dashboard.html` online to see the real basemap. The attribution line under the map ("OpenStreetMap contributors, CARTO") is required and must ship.
 - **Deliberately excluded from the build:** any VERI wallet or token-pricing panel (do not build it anywhere), the Guardian Assistant panel and its "50+ agents" claim, the forensic view, the Trust Verification Ledger and Consignment Passport tabs, and the IOTA Tangle security line. These depend on VeriPura core and are outside this slice.
 
 ---
 
-## Environment, testing, build log, and version control (applies to both prompts)
+## Environment, testing, build log, and version control (applies to all three prompts)
 
 Same rules as the backend prompts, restated so each prompt stands alone:
 
@@ -35,7 +36,7 @@ Same rules as the backend prompts, restated so each prompt stands alone:
 
 ---
 
-## Prompt UI-1 of 2: API surface for the UI
+## Prompt UI-1 of 3: API surface for the UI
 
 ```
 You are extending the VeriPura platform backend (Prompts 1 to 3: organizations, users, org_roles,
@@ -136,7 +137,7 @@ end if one is configured.
 
 ---
 
-## Prompt UI-2 of 2: The web app
+## Prompt UI-2 of 3: The web app
 
 ```
 You are building the web UI for the VeriPura platform. The backend (Prompts 1 to 3 and UI-1) is
@@ -184,12 +185,27 @@ Build the following, in this order, committing after each step:
      "View issue" links to the issue screen. "Upload" is rendered disabled with a tooltip, since
      document upload is a later stage. "Nudge party" is rendered disabled with the same
      treatment, since messaging is deferred.
-   - Live consignment map: there is no tracking or position data in the backend. Build the map
-     as a self-contained SVG (no tile server, no external map service; project the world-atlas
-     land data with d3-geo at build time) driven by a clearly named sample-data module
-     `web/src/sample/mapSample.ts`. Keep the "Sample positions" flag visible on the map at all
-     times, and never present the positions as real tracking. Vessel selection, the consignment
-     chips under the map, and the info line work as in the mockup.
+   - Live consignment map: there is no tracking or position data in the backend yet (UI-3 adds
+     it), so this stage builds the map component against a clearly named sample-data module
+     `web/src/sample/mapSample.ts` (lat/lng positions, route arcs between sample ports, and
+     "last position" ages). Use Leaflet from npm (leaflet 1.9.x, import its CSS, no CDN) with
+     CARTO basemap tiles: dark_all when `html.dark` is set and rastertiles/voyager otherwise,
+     subdomains abcd, swapping the tile layer when the theme toggles (MutationObserver on the
+     class). Put the tile URLs, attribution string and max zoom in one file,
+     `web/src/map/tiles.ts`, so a licensed or self-hosted tile provider can replace them later
+     without touching components.
+     Required: (1) the attribution "OpenStreetMap contributors, CARTO" (with links) is always
+     visible on the map; (2) an offline fallback layer underneath the tiles, drawn from the
+     Natural Earth 110m land GeoJSON in the `world-atlas` npm package, in a pane below the tile
+     pane, so the map still shows land if tiles fail to load; (3) scroll-wheel zoom off, zoom
+     buttons on (so the page still scrolls), minimum zoom 2; (4) vessel markers as divIcons with
+     the same colour semantics as the mockup (open issue, on track, cleared) and a hollow dashed
+     marker for "no recent position"; (5) the "Sample positions" flag stays visible whenever the
+     data comes from `mapSample.ts`, and positions are never presented as real tracking. Vessel
+     selection, the consignment chips under the map, and the info line (including the last
+     position age) work as in the mockup. Do not use a Leaflet default marker image. The tile
+     provider's terms and any usage limits must be checked before launch (see the notes at the
+     end), so do not add a paid key or account in this stage.
 
 3. ROADMAP  (mockup: Roadmap.html)
    - Header from GET /consignments/:id (only fields that exist: no quantity), checklist from
@@ -236,7 +252,7 @@ Build the following, in this order, committing after each step:
    renders no requiredBy, category, or issue text; a hidden item is absent; a null category
    renders under "Uncategorised"; the action queue filter chips change the visible items and the
    count; Upload buttons are disabled; theme toggle adds and removes the `dark` class and
-   persists; the superadmin route is inaccessible to a non-superadmin; the dev user switcher is
+   persists; the map shows the OpenStreetMap and CARTO attribution and the "Sample positions" flag, and swaps the tile URL when the theme toggles (mock Leaflet's tile layer, no real network requests in tests); the superadmin route is inaccessible to a non-superadmin; the dev user switcher is
    absent in a production build; and a grep-style test that fails if the strings "Document name
    TBC", "wallet", "VERI token", or an em dash appear anywhere in web/src. Also run a build
    (`vite build`) as part of the suite, and do a manual visual comparison of each screen against
@@ -245,7 +261,7 @@ Build the following, in this order, committing after each step:
 Explicit exclusions for this stage (do not build, do not stub in the UI): any VERI wallet or
 token-pricing or agent-settings panel, the Guardian Assistant panel, forensic view, ledger and
 passport tabs, document upload, messaging and comment threads, AI extraction, live vessel or
-container tracking, real sign-in, and any billing or Stripe UI.
+container tracking (that is UI-3), real sign-in, and any billing or Stripe UI.
 
 Follow the "Environment, testing, build log, and version control" workflow: local sandbox only,
 full suite passing, build-log entry and a commit after each numbered step, push to origin at the
@@ -254,9 +270,128 @@ end if one is configured.
 
 ---
 
+## Prompt UI-3 of 3: Vessel tracking
+
+Run after UI-2 is complete and merged. This is the first stage that touches real position data, so it changes the schema and adds an external data dependency. Read the notes at the end first.
+
+```
+You are adding vessel tracking to the VeriPura platform. The backend (Prompts 1 to 3, UI-1) and
+the web app (UI-2) are already in the repo. The dashboard map currently runs on sample data from
+web/src/sample/mapSample.ts. This stage lets a consignment carry a vessel identifier, fetches
+vessel positions through a provider interface, stores them, and feeds the map. Read the existing
+consignment routes, the permission engine, the audit log, and the map component before writing
+code. Follow the "Environment, testing, build log, and version control" workflow: local sandbox
+only, no real network calls in tests, full suite passing, build-log entry and a commit after
+each numbered step.
+
+Ground rules:
+- The browser never calls an AIS provider. Only the backend does, and provider keys live in
+  environment variables, never in the frontend, the repo, or logs.
+- Never draw a position that is not real. If a vessel has no recent position, say so.
+- Do not guess a provider's message format or terms. Read its official documentation and
+  record what you relied on in docs/build-log.md.
+- No em dash characters in any code, comment, or UI string. No hard-coded document names.
+
+1. SCHEMA AND VESSEL IDENTIFIERS
+   - Migration adding nullable columns to consignments: vessel_imo (text, 7 digits),
+     vessel_mmsi (text, 9 digits), vessel_name (text). Existing rows stay valid.
+   - Validate on write: IMO must be 7 digits and pass the IMO check digit (multiply the first
+     six digits by 7, 6, 5, 4, 3, 2, sum them, the last digit of the sum must equal the seventh
+     digit). MMSI must be exactly 9 digits. Either or both may be set. Reject anything else
+     with a 422 and a clear message.
+   - POST /consignments accepts the three optional fields. Add PATCH /consignments/:id/vessel to
+     set or clear them, using the existing permission engine (only an org that may edit the
+     consignment) and writing an audit_log entry with the old and new values.
+   - GET /consignments and GET /consignments/:id return the fields (null when unset).
+   - Vessel identifiers are entered by hand in this stage. Extracting them from a bill of
+     lading is a later stage that depends on AI extraction and the confirmed document list.
+   - New table vessel_positions: id, vessel_imo (nullable), vessel_mmsi (nullable), lat, lng,
+     speed_knots, heading_deg, nav_status, position_time (from the provider), received_at,
+     source (text). Index on (vessel_mmsi, position_time desc) and (vessel_imo, position_time
+     desc). Keep at most 72 hours of history per vessel and prune older rows on a schedule.
+
+2. POSITION PROVIDER INTERFACE
+   - Define `VesselPositionProvider` in `src/tracking/provider.ts`: given a list of
+     { imo?, mmsi? } identifiers it yields normalised positions
+     { imo?, mmsi?, lat, lng, speedKnots?, headingDeg?, navStatus?, positionTime, source }.
+     Validate every position (lat -90..90, lng -180..180, time not in the future by more than
+     a minute) and drop bad ones with a logged count.
+   - `SampleProvider` (default, env AIS_PROVIDER=sample): deterministic positions along
+     great-circle routes for seeded vessels, every position tagged source "sample".
+   - `AisStreamProvider` (env AIS_PROVIDER=aisstream): a server-side WebSocket client for the
+     AISStream.io service (https://aisstream.io, free API key in AISSTREAM_API_KEY). Subscribe
+     with a filter on the MMSIs of vessels that active consignments reference, resubscribe when
+     that set changes, reconnect with exponential backoff and jitter, respect the documented
+     limit of three connections, and keep up with the stream (do not block the message
+     handler, because the service drops messages for slow consumers). It only ever runs on a
+     server, since browsers are not allowed to connect. Read the official docs for the exact
+     subscription and message format. Unit-test it against a fake WebSocket, never the real
+     service.
+   - Guard: the live provider refuses to start unless AIS_LIVE_ALLOWED=true. Default false.
+     Document in the code and in docs/build-log.md that AISStream's terms on commercial use
+     have not been confirmed, and that this flag exists so nobody enables live data in a paid
+     product by accident.
+   - Leave a documented extension point for a REST provider (a licensed source such as
+     VesselAPI, Datalastic or VesselFinder, polled on an interval and rate limited). Do not
+     implement it in this stage.
+   - Ingestion service: writes normalised positions to vessel_positions, deduplicating on
+     (vessel, position_time). A failure in the provider must never break the API.
+
+3. POSITION ENDPOINTS
+   - GET /consignments/:id/position and GET /positions (all consignments visible to the acting
+     user, same visibility rules as GET /consignments). A consignment the user cannot see must
+     never leak a position.
+   - Each item: consignmentId, lat, lng, speedKnots, headingDeg, positionTime, ageSeconds,
+     freshness ("recent" if at most 2 hours old, "stale" if older, "unavailable" if there is no
+     position or no vessel identifier), isSample (true when source is "sample"), and an optional
+     `trail` of the last 24 hours of positions (max 100 points, thinned). The 2 hour threshold
+     is a config value, not a literal.
+   - Consignments with no vessel identifier return freshness "unavailable" with a reason
+     "no_vessel_identifier". Do not omit them, the UI needs to say why there is no dot.
+
+4. FRONTEND WIRING
+   - The dashboard map loads GET /positions (TanStack Query, refetch every 60 seconds while the
+     tab is visible) and replaces mapSample.ts as the data source when the API returns real or
+     sample-provider data. Keep mapSample.ts only as the storybook and test fixture.
+   - Markers: "recent" is a normal marker, "stale" is the hollow dashed marker, "unavailable"
+     has no marker and instead appears in the info line ("No vessel identifier on this
+     consignment" or "No position received yet"). The info line shows the last position age,
+     speed and heading when known.
+   - Flags: show "Sample positions" whenever any shown position has isSample true, otherwise
+     show "Live AIS". Never show "Live" for stale data.
+   - No planned-route line: the backend has no port or route data. Draw the recent `trail`
+     as a thin line instead. Do not fake an origin to destination arc for real positions.
+   - Roadmap header shows vessel name and IMO when present. The Intake form gets three optional
+     fields (vessel name, IMO, MMSI) with the same validation messages as the API.
+   - Keep the attribution line on the map.
+
+5. TESTS
+   IMO check digit and MMSI validation (valid, invalid, blank); PATCH writes an audit entry and
+   is permission scoped; GET /positions never returns a consignment the user cannot see;
+   freshness classification at the threshold boundaries; provider validation drops bad
+   positions; the AIS provider refuses to start when AIS_LIVE_ALLOWED is not true; reconnect
+   backoff with a fake timer; the ingestion service deduplicates; the frontend renders a hollow
+   marker for stale, no marker for unavailable, and the correct flag for sample and live data.
+   No test may touch the network.
+
+Explicit exclusions for this stage: buying or configuring satellite AIS, ETA prediction, port
+geofencing and arrival alerts, container-level tracking, AI extraction of vessel details from
+documents, and any paid provider integration.
+
+Finish with a short docs/tracking.md covering the provider interface, the env variables
+(AIS_PROVIDER, AIS_LIVE_ALLOWED, AISSTREAM_API_KEY, the freshness threshold), the coverage
+limits described below, and what must be decided before live data is turned on for customers.
+```
+
+---
+
 ## Notes for whoever runs these
 
 - **The document list is the one open dependency.** The UI is built to render whatever `document_types` contains, so confirming the authoritative list means loading it into the database (and setting `category` if categories are wanted). No frontend change is needed. Until then the seed uses the stub core client's example documents.
-- **The map is illustrative until a tracking source exists.** The backend has no vessel positions, routes, or ETAs. When a source is chosen (carrier or forwarder feed, or VeriPura core), it becomes its own stage: a positions endpoint and swapping `mapSample.ts` for it.
+- **Map tiles and licence.** The basemap is CARTO tiles built on OpenStreetMap data, with the attribution shown on the map. Before customers use it, confirm CARTO's current terms for commercial use and any usage limits on free tiles, and decide whether to move to a paid or self-hosted tile provider. Because the tile URLs live in one file (`web/src/map/tiles.ts`), that swap does not touch components. The Natural Earth land fallback is public domain.
+- **The map is illustrative until UI-3.** Until then the positions come from `mapSample.ts` and are flagged "Sample positions". UI-3 adds the vessel identifier fields, the provider interface, and the position endpoints.
+- **AIS coverage has a hard limit.** Free and low-cost AIS feeds mostly come from land-based receivers, which reach roughly 40 to 60 km offshore, so a ship in mid-ocean will often have no position. Satellite AIS fills the gap and is where the cost is. The UI is built to say "no recent position" instead of drawing a guess. Decide before launch whether customers need satellite coverage.
+- **AISStream's commercial terms are unconfirmed.** It is a free service suited to prototyping, and a public question about commercial use was unanswered when checked. Ask them directly, or use a licensed provider (VesselAPI, Datalastic, VesselFinder, or a larger vendor), before live data is enabled for paying customers. UI-3 keeps live data off unless AIS_LIVE_ALLOWED=true.
+- **Vessel identifiers are manual for now.** The IMO or MMSI is typed in. Reading it from a bill of lading needs the extraction stage and the confirmed document list.
 - **Quantity, applicant country, and due dates are absent on purpose.** The mockups show a quantity on the consignment header and a country on the applicant. Neither is in the schema, and the UI-1 and UI-2 prompts tell the CLI to omit them rather than add columns silently. Add them as a deliberate schema change if you want them.
 - **Deferred and still open:** document upload, the messaging and comment layer, AI extraction on intake, Guardian and forensic features, real sign-in, and Stripe billing. Each is a separate stage.

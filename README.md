@@ -23,6 +23,22 @@ and the sandbox, runs the tests, and reports any drift between the memory and re
 pre-commit hook and a Claude Code Stop hook stop the memory falling behind. Both are described in
 `docs/PROJECT_MEMORY.md`. A new clone gets the git hook from `npm install`.
 
+## The web app
+
+`web/` is the React, Vite, and TypeScript app (its own package, with its own tests).
+
+```powershell
+npm run web:install   # once
+npm run seed:dev      # sample users and consignments, if not done already
+npm run dev           # the backend, http://127.0.0.1:3100
+npm run web:dev       # the app, http://localhost:5173 (proxies /api to the backend)
+```
+
+In development you choose a sample user to act as, from a picker and then from a select in the
+corner, so each role and organization can be tried. That switcher does not exist in a production
+build. `npm run web:test` runs the web tests, which include a real production build, and
+`npm run test:all` runs both suites.
+
 ## Sandbox
 
 Prerequisites: Node 22+, Docker Desktop running.

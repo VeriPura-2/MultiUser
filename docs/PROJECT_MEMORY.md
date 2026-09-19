@@ -10,8 +10,8 @@ Keep this file short and current. It must stay under about 250 lines because it 
 Update it when the state changes. Do not turn it into a second build log.
 
 Last updated: 2026-09-19
-Tests passing: 324
-Stages complete: 3 of 3 backend prompts, and UI-1 (API surface for the UI). UI-2 (the web app) and Prompt 4 (Stripe) not started.
+Tests passing: 393
+Stages complete: 3 of 3 backend prompts, and UI-1 (API surface for the UI). UI-2 (the web app) in progress, step 1 of 7. UI-3 (vessel tracking) and Prompt 4 (Stripe) not started.
 
 ## Standing rules (Thomas's, apply to every session)
 
@@ -41,7 +41,7 @@ document compliance for cross-border consignments. Built as a real MVP trial for
 may convert to paying customers, not a throwaway prototype. Pilot lane: Brazil to GB beef.
 
 - Repo: https://github.com/VeriPura-2/MultiUser (branch `main`). Local folder: `Veripura/Control Tower`.
-- Stack: TypeScript, Node 22+, Postgres 17 (Docker), Drizzle ORM, Fastify 5 (with @fastify/multipart), Vitest.
+- Stack: TypeScript, Node 22+, Postgres 17 (Docker), Drizzle ORM, Fastify 5 (with @fastify/multipart), Vitest. The web app in `web/` is React 19, Vite, React Router, and TanStack Query, with its own package and tests.
 - Sibling project: the Columbia Wireless tower demo at `Veripura/Wireless/tower-management-demo` (separate repo, separate rules).
 
 ## Restart and wrap up
@@ -66,7 +66,10 @@ Copy-Item .env.example .env
 npm run db:up        # Postgres on localhost:5433 (5432 is taken on this machine)
 npm run db:migrate
 npm test             # needs the sandbox up; uses a separate veripura_test database
-npm run dev          # http://127.0.0.1:3100 (3000 is taken by Next.js dev servers on this machine)
+npm run dev          # the backend, http://127.0.0.1:3100 (3000 is taken by Next.js dev servers on this machine)
+npm run web:install  # once, installs web/
+npm run web:dev      # the web app, http://localhost:5173
+npm run test:all     # backend suite, then the web suite
 ```
 
 ## Map
@@ -77,6 +80,7 @@ npm run dev          # http://127.0.0.1:3100 (3000 is taken by Next.js dev serve
 - `src/services/`: lifecycle, consignments, checklist, issues, and `consignmentViews.ts` (the three read models).
 - `src/core/`: VeriPura core contract (client interface, stub and live, HMAC signing, send).
 - `src/http/`: thin Fastify layer. `tests/`: Vitest suite. `scripts/`: seed and memory check.
+- `web/`: the web app. `web/src/styles/tokens.css` holds every colour (extracted from the mockups, no hard-coded colours elsewhere). `web/src/api/` is the client and types (copied by hand from the backend's read models). `web/tests/` holds the tests, including a real production build.
 
 ## Invariants worth not breaking
 
@@ -101,6 +105,7 @@ All dates 2026-09-19. Hashes are the pushed ones (history was corrected twice be
 | Project memory, step 1 | `CLAUDE.md`, this file restructured, `BUILD_PROMPTS.md` (the original spec) | `0ec6e2e` |
 | Project memory, step 2 | The enforcement: `scripts/memory-check.mjs`, the git pre-commit hook, the Claude Code Stop hook, 36 tests of the enforcement itself (206 total) | `74bbb58` |
 | Project memory, step 3 | `/pickup` and `/wrapup` commands, `resume.ps1`, the `veripura` PowerShell command, README section, thin auto-memory pointers | `c5aae93` |
+| UI-2: the web app (in progress) | Step 1: app shell, tokens, theme, fonts, shared components, API client, dev user switcher, auth gate (66 web tests) | see `git log` |
 | UI-1: API surface for the UI | All eight items: `AUTH_MODE=dev` and `GET /me`, `npm run seed:dev`, consignment detail, action queue, issue detail and actions, org directory and superadmin approval, multipart `POST /consignments`, and an end-to-end journey test (324 tests total). Verified against the real server on port 3100. | see `git log` |
 
 Key decisions (full reasoning in the build log): 404 not 403 for non-parties; a bulk permission
@@ -125,7 +130,7 @@ paths share `applyChecklist`; a failed core send keeps the PO and is retryable.
 
 ## Next work
 
-1. **UI-2** (the React web app), from `docs/veripura-cli-ui-prompts.md`. Its mockups must first be copied to `docs/ui-mockups/v2-revised/` (already there, untracked). It builds against the UI-1 endpoints listed in the README. Note the backend defaults to port 3100.
+1. **UI-2** (the React web app), from `docs/veripura-cli-ui-prompts.md`, steps 2 to 7 remaining (dashboard with the Leaflet map, roadmap, issue, intake, superadmin approval, final tests and the visual comparison against the PNG previews). Then **UI-3** (vessel tracking, from the same file). The mockups are in `docs/ui-mockups/v2-revised/` (untracked, Thomas's design inputs).
 2. Prompt 4 (Stripe billing): create a customer on org approval, a checkout and subscription
    flow, a webhook keeping `billing_status` in sync, and deliberately no access enforcement yet.
    Columns already exist. Description in `docs/BUILD_PROMPTS.md`, notes section.
@@ -136,6 +141,7 @@ paths share `applyChecklist`; a failed core send keeps the PO and is retryable.
 - **Git identity:** GitHub blocks pushes whose commits use the personal Gmail (GH007). This repo sets a local noreply email; a fresh clone needs the same local setting.
 - Two design documents live beside the code and are not part of the repo (gitignored). `git add -A` once committed them by accident. Stage explicit paths.
 - Do not run `git filter-branch` without checking the working tree afterward. It deletes files that stop being tracked.
+- **The UI prompts file was rewritten mid-build (2026-09-19, 14:43).** The Dashboard mockup and its two PNGs changed from an offline SVG map to a Leaflet map on CARTO tiles, and a UI-3 (vessel tracking) prompt was added. The pasted UI-2 prompt said the opposite (no tile server). The newer file on disk was followed for the map. Steps other than the dashboard were unaffected.
 - Thomas's UI design inputs sit untracked in the repo folder: `UI Mockup/` and `docs/ui-mockups/` (HTML and PNG mockups of the dashboard, roadmap, issue, intake, and superadmin approval screens). UI-2 reads `docs/ui-mockups/v2-revised/`. They are design inputs, not code. Do not commit them unless Thomas says so. The memory check deliberately ignores them.
 - Running a nested `claude -p` in this folder while the tree has uncommitted code and no doc updates triggers the Stop hook, which forces that session into a `/wrapup` attempt and replaces its answer. Commit first, then test cold starts.
 - The memory check on this project takes about a second per commit, and its test file about 45 seconds because it builds throwaway git repos. That is expected.

@@ -1,0 +1,53 @@
+/*
+ * Design tokens, extracted verbatim from the v2 mockups (docs/ui-mockups/v2-revised/*.html).
+ * All five mockups carry a byte-identical block, so this is the single source of colour.
+ * Light values live in :root and dark values in html.dark. Every colour in the app comes from
+ * one of these tokens: components never hard-code a hex value.
+ *
+ * The dark theme is a neutral charcoal that was deliberately lifted off near-black. It must not
+ * drift toward brown.
+ */
+
+:root{
+  --ivory:#FAF9F5; --paper:#FFFEFA; --recess:#F3F0E6; --charcoal:#22201A; --charcoal-soft:#5A5548;
+  --gold:#B8860B; --gold-deep:#8F6A08; --line:#E7E1D3; --gold-bg:#FBF1D6;
+  --green:#2F6B3D; --green-bg:#E7F1E7; --gray:#8A8577; --gray-bg:#EFEDE6;
+  --blue:#3B6FA0; --blue-bg:#E7EEF5; --red:#B23A34; --red-bg:#F7E8E6;
+  --purple:#6B3FA0; --purple-bg:#EFE7F5; --amber:#A0632F; --amber-bg:#F5E9DC;
+  --warn-bg:#FCF6E3; --warn-line:#E4C77A; --red-line:#E9B9B3; --green-tint:#F3F8F3; --green-line:#CFE3D2;
+  --solid-green:#2F6B3D; --solid-red:#B23A34; --solid-ai:#8F6A08; --on-gold:#211C10;
+  --nav:#1E1B15; --nav-top:#161511; --nav-ink:#EDE8DA; --nav-soft:#CFC8B6; --nav-mute:#9C9483;
+  --nav-active:#332D22; --nav-line:#38321F; --nav-avatar:#4A4227; --nav-gold:#F1D77E;
+  --map-sea:#EEF1F0; --map-land:#DDD8C8; --map-land-line:#C9C3B0;
+}
+/* Dark: neutral charcoal, lifted off near-black, no brown cast */
+html.dark{
+  --ivory:#303338; --paper:#3B3E44; --recess:#454850; --charcoal:#EEEFF1; --charcoal-soft:#B9BDC4;
+  --gold:#E0B23C; --gold-deep:#D9A93A; --line:#565A62; --gold-bg:#4D4529;
+  --green:#7ED39A; --green-bg:#2F4D3C; --gray:#AEB3BA; --gray-bg:#4A4D54;
+  --blue:#86B8EA; --blue-bg:#34485E; --red:#F59A92; --red-bg:#5E3B3A;
+  --purple:#C9AEF0; --purple-bg:#443B5C; --amber:#EBB482; --amber-bg:#5A4632;
+  --warn-bg:#4A4430; --warn-line:#7A6A34; --red-line:#7C4B48; --green-tint:#34463B; --green-line:#4A6A57;
+  --solid-green:#3F8D57; --solid-red:#C24A43; --solid-ai:#A67C14;
+  --nav:#282A2E; --nav-top:#282A2E; --nav-ink:#EEEFF1; --nav-soft:#C5C9D0; --nav-mute:#9EA3AA;
+  --nav-active:#3D4046; --nav-line:#44474D; --nav-avatar:#50545B; --nav-gold:#F0D078;
+  --map-sea:#2A2D31; --map-land:#4B4F56; --map-land-line:#5D6169;
+}
+
+
+/* Additions that are not in the mockup's block. They exist so that no component needs a hard-coded
+   colour: the mockups use a literal white for text on solid colour, and one literal blue for an
+   avatar. Same value in both themes, as in the mockups. */
+:root{
+  --on-solid:#FFFFFF;
+  --avatar-blue:#3B6FA0;
+  --scrim:rgba(0,0,0,.45); /* the dimmed layer behind a modal dialog */
+}
+
+/* Type. Fonts are bundled with the app (see main.tsx) rather than loaded from a CDN. */
+:root{
+  --font-display:"DM Serif Display", Georgia, serif;
+  --font-serif:"Source Serif 4 Variable", "Source Serif 4", Georgia, serif;
+  --font-ui:system-ui, sans-serif;
+  --font-mono:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

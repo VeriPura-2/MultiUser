@@ -13,3 +13,7 @@ trade_compliance_control_tower_design.pdf
 
 # Local test-runner output (vitest writes here when a JSON reporter is used).
 .vitest/
+
+# The web app (web/) has its own dependencies, build output, and reports.
+web/dist/
+web/.vitest/

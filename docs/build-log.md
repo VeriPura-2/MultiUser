@@ -690,3 +690,40 @@ Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-1 (eight numbered items). E
 - `tsc --noEmit` clean. No em dashes in any file. `npm audit`: the same 4 dev-only drizzle-kit findings as before, nothing new.
 
 **UI-1 status:** complete. The eight items are built, each mutation-checked, and verified against the real server. UI-2 (the web app) is next and has not been started.
+
+---
+
+# UI-2: the web app
+
+Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-2 (seven numbered steps). The app lives in `web/`, its own package with its own tests, so the backend's dependencies and suite are untouched. The backend suite and the web suite are counted together in `docs/PROJECT_MEMORY.md`.
+
+**The spec changed while this stage was being built.** The UI-2 prompt I was given said to build the dashboard map as a self-contained SVG with "no tile server, no external map service", projecting land data with d3-geo at build time. Partway through step 1 the prompts file on disk was rewritten (14:43): "of 2" became "of 3", a UI-3 vessel-tracking prompt was added, and the UI-2 map section now asks for Leaflet from npm with CARTO basemap tiles, an offline Natural Earth fallback layer, required attribution, and a `web/src/map/tiles.ts` file so the provider can be swapped. The Dashboard mockup and its two PNGs were regenerated to match. The two instructions contradict each other on the map only. The rewritten file is the newer and more specific statement, with its own reasoning and licensing notes, so the **map follows the newer file**. Steps 1 and 3 to 6 are identical in both. If the SVG approach was still wanted, only step 2 changes.
+
+## 2026-09-19, UI-2 step 1: app shell and theme
+
+**Built**
+- `web/`: Vite 8, React 19, TypeScript, React Router 7, TanStack Query 5, Vitest 5 and Testing Library. Plain CSS, no component library or framework. The dev server runs on 5173 and proxies `/api` to the backend on 3100 (the prefix is stripped, so the backend needed no change).
+- `web/src/styles/tokens.css`: the mockups' token block, extracted **by script from the mockup file**, not retyped. All five mockups carry a byte-identical block (checked by hash). The six dark values the prompt names match exactly. Three extras that the mockup writes as literals are now tokens so no component needs a hard-coded colour: `--on-solid` (white), `--avatar-blue`, and `--scrim` (the modal's dimmed backdrop). Font stacks are tokens too.
+- Theme: `vp-theme` in localStorage, every access in try/catch, applied before first paint by a small inline script in `index.html` (no flash), and shared across every toggle on a page. Label is what it will switch to, as in the mockups.
+- Fonts are **bundled** (`@fontsource/dm-serif-display`, `@fontsource-variable/source-serif-4`), not loaded from Google as the mockups do. No outside request, works offline, no privacy leak. The mockup's `IBM Plex Mono` for organization tags was named but never loaded, so it always rendered as the system monospace; the app uses that stack.
+- Shared components: Badge, OrgTypeTag, Card, StatCard, ThemeToggle, EmptyState, ErrorState, LoadingSkeleton, plus Modal and DisabledAction (a natively disabled button whose tooltip lives on a wrapper, since browsers do not reliably show a tooltip on a disabled button).
+- Layout: the left sidebar (name and organization from `GET /me`) and the top bar for the superadmin console. Routes: `/` (a superadmin is redirected to `/admin`), `/admin` (a non-superadmin is redirected to `/`).
+- API layer: a small client (`/api`, an `ApiError` with the status), types copied from the backend's read models, and query hooks. Retries are skipped for answers the server already gave.
+- Development user switching: a picker when nobody is chosen (a 401 from `/me`), then a corner select. `X-Dev-User` is sent on every request in development. All of it is lazy and behind `import.meta.env.DEV`.
+
+**Decisions the prompt left open**
+- **Sidebar entries.** Dashboard and Consignments (a link to the dashboard's consignment list) lead somewhere. Parties, Issues, Documents, and Settings have no screen and no spec, so they are shown **disabled with a reason** rather than linking to a page that does not exist, the same treatment the prompt gives Upload and Nudge. Say if you would rather have real pages for Parties (the workload endpoint exists) and Issues.
+- **A superadmin lands on the console.** The backend refuses the dashboard's data without an organization (`/action-queue` and `/parties/workload` need `?orgId=`), so there is nothing to show them there.
+- **Sizes under 14px raised to 14px.** The mockups use 12px (the placeholder flag) and 13px (table headers, org chips). The prompt says nothing under 14px, and a test enforces it, including inline styles.
+- **Production with no sign-in** says "Sign-in is not available yet" instead of offering sample users, because real sign-in is a later stage.
+
+**Findings while building**
+- **A production build under the test runner is not a production build.** Vite decides "production" from `NODE_ENV`, and Vitest sets it to `test`, so an in-process `vite build` kept the dev switcher in the bundle. The test that a production bundle has no dev tooling initially failed for that reason. Its positive control (a development build must contain the markers) is what made the cause clear. The test now runs `vite build` in a child process with `NODE_ENV` set, and with default minification, since an unminified build keeps comments that mention the very names being searched for. A real `vite build` was checked separately and is clean.
+- **A focus bug in my own Modal, fixed before commit.** The effect depended on `onClose`, so a parent passing an inline function would re-run it on every keystroke and pull focus away while typing. `onClose` is now held in a ref. The first test did not catch the regression (focus returns within the same render, so the end state looks fine); the test now watches for the `blur` event itself.
+- **Mistakes of mine caught by the checks:** a fixture that returned an object my mock layer does not understand; a comment containing a hex-like example that tripped the no-hard-coded-colour guard; a sidebar CSS selector that targeted the wrong element. All fixed.
+
+**Repository tooling changed to match**
+- `scripts/memory-check.mjs` now counts `web/` as code (so a web change needs the docs updated) and its `--full` audit runs both suites and sums them. `tests/memoryCheck.test.ts` gained three cases for it. New root scripts: `web:install`, `web:dev`, `web:build`, `web:test`, `typecheck:web`, `test:all`.
+- `docs/veripura-cli-ui-prompts.md` (Thomas's edited spec) is committed as the specification of record.
+
+**Tests:** 66 web tests in seven files (theme toggle, shell and routing, the superadmin guard, the dev switcher in development and production, shared components, design tokens, the grep-style hygiene guards, and a real production build with a positive control). Mutation-checked: theme not persisting, the toggle label reversed, the superadmin guard removed, the switcher rendering outside development, the dev header sent outside development, production offering the picker, the sidebar hiding the organization, a superadmin not redirected, the Modal focus regression, a dark token drifting toward brown, a disabled action becoming clickable, and a hard-coded hex in a component. Eleven were caught first time; the Modal one survived until the test watched for `blur`, then was caught. Backend suite: 327 (three new memory-check cases). **Total: 393.**

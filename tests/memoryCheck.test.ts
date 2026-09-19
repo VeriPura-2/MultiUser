@@ -119,6 +119,9 @@ describe("pre-commit (--staged)", () => {
     ["package.json", "package.json", "{}\n"],
     ["a claude command", ".claude/commands/x.md", "x\n"],
     ["a git hook", ".githooks/pre-commit", "#!/bin/sh\n"],
+    ["web app source", "web/src/App.tsx", "export {};\n"],
+    ["a web test", "web/tests/x.test.ts", "export {};\n"],
+    ["the web package file", "web/package.json", "{}\n"],
   ])("treats %s as code that needs the docs", (_label, file, content) => {
     const r = makeRepo();
     r.write(file, content);

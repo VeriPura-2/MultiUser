@@ -20,7 +20,13 @@
     "start": "tsx src/server.ts",
     "prepare": "git config core.hooksPath .githooks || exit 0",
     "memory:check": "node scripts/memory-check.mjs",
-    "seed:dev": "tsx scripts/seed-dev.ts"
+    "seed:dev": "tsx scripts/seed-dev.ts",
+    "web:install": "npm --prefix web install",
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build",
+    "web:test": "npm --prefix web test",
+    "typecheck:web": "npm --prefix web run typecheck",
+    "test:all": "npm test && npm run web:test"
   },
   "dependencies": {
     "@fastify/multipart": "^10.1.1",
