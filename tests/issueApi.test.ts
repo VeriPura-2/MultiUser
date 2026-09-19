@@ -259,6 +259,33 @@ describe("POST /issues/:issueId/resolve", () => {
   });
 });
 
+describe("body-less POST requests from a UI", () => {
+  const bare = (url: string, actorId: string) =>
+    app.inject({ method: "POST", url, headers: { "x-dev-user": actorId, "content-type": "application/json" } });
+
+  it("resolve works with a JSON content type and no body at all", async () => {
+    const s = await scenario();
+    const issue = await issueOf(s, s.cert.item.id);
+    const res = await bare(`/issues/${issue.id}/resolve`, s.importerAdmin.id);
+    expect(res.statusCode).toBe(200);
+    expect(res.json().status).toBe("resolved");
+  });
+
+  it("a malformed JSON body is still refused, and an empty body on an endpoint that needs one is a 400", async () => {
+    const s = await scenario();
+    const issue = await issueOf(s, s.cert.item.id);
+    const broken = await app.inject({
+      method: "POST",
+      url: `/issues/${issue.id}/request-correction`,
+      headers: { "x-dev-user": s.importerAdmin.id, "content-type": "application/json" },
+      payload: "{not json",
+    });
+    expect(broken.statusCode).toBe(400);
+    expect((await bare(`/issues/${issue.id}/request-correction`, s.importerAdmin.id)).statusCode).toBe(400);
+    expect((await db().select().from(issues).where(eq(issues.id, issue.id)))[0]!.status).toBe("open");
+  });
+});
+
 describe("POST /consignments/:consignmentId/checklist/:itemId/issues", () => {
   const url = (s: Scenario, itemId: string) => `/consignments/${s.consignment.id}/checklist/${itemId}/issues`;
   const body = { problem: "Quantity does not match", expectedValue: "480", foundValue: "460", responsibleOrgType: "exporter" };

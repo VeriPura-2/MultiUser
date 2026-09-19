@@ -4,6 +4,7 @@ import { ValidationError } from "../errors.js";
 import { assertCanActOnIssue, assertCanRaiseIssueOn, getIssueDetail } from "../services/issueViews.js";
 import { raiseIssue, requestCorrection, resolveIssue } from "../services/issues.js";
 import { resolveActingUser, type ActorOptions } from "./actor.js";
+import { ignoreEmptyJsonBody } from "./emptyBody.js";
 
 const optionalText = (value: unknown, field: string): string | null => {
   if (value === undefined || value === null) return null;
@@ -18,6 +19,7 @@ const optionalText = (value: unknown, field: string): string | null => {
  * service functions, and answer with the refreshed issue so the UI can update in place.
  */
 export const issueRoutes: FastifyPluginAsync<ActorOptions> = async (app, options) => {
+  ignoreEmptyJsonBody(app);
   const actorFor = (request: FastifyRequest) => resolveActingUser(request, options.allowDevActorHeader ?? false);
   const bodyOf = (request: FastifyRequest): Record<string, unknown> => {
     const body = request.body;

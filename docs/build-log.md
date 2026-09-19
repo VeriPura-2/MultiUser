@@ -615,3 +615,25 @@ Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-1 (eight numbered items). E
 - `checklistItem.id` and `consignmentId` were added so the UI can link back; they are opaque ids.
 
 **Tests:** 21 new in `tests/issueApi.test.ts`, covering every item in the prompt's list for this step (404 when the parent item is status_only or hidden, the action endpoints' audit rows with the right actor and metadata) plus validation, 401/403, the activity list, and agreement with the checklist and action queue. Mutation-checked, each caught: the gate ignoring the view level; ignoring party membership; each of the three action endpoints skipping the gate; another org's email leaking into the activity list; a hidden source document being named; actions always offered. One assertion of mine was a tautology and was replaced with the plain expectation. Full suite: **276 of 276**.
+
+---
+
+## 2026-09-19, UI-1 step 6: organization directory and superadmin endpoints
+
+**Built**
+- `src/services/adminOrgs.ts`, `src/http/admin.ts`, and `src/http/emptyBody.ts`; routes registered in `src/http/app.ts`.
+- `GET /organizations/exporters`: active exporter-type organizations as `{ id, name }`, sorted by name, answered as `{ organizations: [...] }`. Available to any active user of an importer organization and to superadmin; everyone else gets 403.
+- Superadmin only (403 for anyone else, 401 with no user): `GET /admin/organizations?status=...`, `GET /admin/organizations/:id`, `POST /admin/organizations/:id/approve`, `POST /admin/organizations/:id/reject`. Approve and reject wrap `approveOrganization` and `rejectOrganization` and answer with the refreshed organization. No applicant country, because the schema has none.
+
+**Decisions the prompt left open**
+- **Roles on a pending organization.** The prompt asks for "the five standard roles with the default permission summary", but a pending organization has no `org_roles` rows (they are created on approval). So the roles come from the standard role set (`STANDARD_ROLES`, with `isOrgAdmin`), and each role's permissions come from `document_permission_rules` for that organization's type. For every document type with no rule the entry is `{ configured: false, viewLevel: null, canEdit: false, canDownload: false, canApprove: false }`, so the UI can show "not configured". Nothing is defaulted or invented (tested: an unconfigured cell is never `full`). All document types are listed, so a gap is visible.
+- `createdAt`, not `created_at`, to match the rest of the API's camelCase (the prompt mixes styles).
+- The list is oldest first, so the approval queue is first come, first served. `?status` is optional (no filter returns every organization) and an unknown value is a 400, not an empty list.
+- `applicant` is the organization's first (earliest created) user, the same rule `approveOrganization` uses to pick the first user.
+- A malformed organization id is a 404, like an unknown one. The tests caught that approve or reject with a malformed id returned a 500 (the id reached Postgres); fixed in the new route before commit.
+
+**A second finding: body-less POSTs (fixed for the new endpoints).** Probing with `POST /issues/nope/resolve` (a JSON content type and no body) returned 400 from Fastify before the handler ran. A UI calling `resolve`, `approve`, or `reject` with a plain `fetch` and a JSON content type does exactly that. `ignoreEmptyJsonBody` drops the content type of a genuinely empty request so those endpoints work. Fastify's own JSON parser is deliberately left in place because it guards against prototype-poisoning payloads and a replacement would lose that. Applied to the issue and admin plugins (so `src/http/issues.ts` from step 5 changed in this commit); a malformed body is still a 400, and endpoints that need a body still refuse an empty one.
+
+**A pattern check, as the standing rule requires (recorded as an open item, not fixed).** After the malformed-id 500, every existing route was probed. The checklist, consignment detail, issue, workload, and admin routes are fine. `POST /purchase-orders` (stage 2) returns 500 when only `exporterOrgId` is malformed. It was left unchanged and is listed in `docs/PROJECT_MEMORY.md` with the small fix and its implication for Thomas to decide.
+
+**Tests:** 19 new in `tests/adminApi.test.ts`, 2 added to `tests/issueApi.test.ts` (body-less requests). Mutation-checked: non-importers listing exporters; non-active exporters listed; an unconfigured permission invented; rules of other org types used; an unknown status accepted; the admin list open to non-superadmins; the empty-body tolerance removed. Each caught. One survived and is an equivalent mutant: removing the route's superadmin check on approve changes nothing observable because `approveOrganization` refuses non-superadmins itself (two independent guards); the "403 on every /admin route" test covers the behavior. Full suite: **297 of 297**.
