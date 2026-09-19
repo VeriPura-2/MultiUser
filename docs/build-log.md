@@ -637,3 +637,20 @@ Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-1 (eight numbered items). E
 **A pattern check, as the standing rule requires (recorded as an open item, not fixed).** After the malformed-id 500, every existing route was probed. The checklist, consignment detail, issue, workload, and admin routes are fine. `POST /purchase-orders` (stage 2) returns 500 when only `exporterOrgId` is malformed. It was left unchanged and is listed in `docs/PROJECT_MEMORY.md` with the small fix and its implication for Thomas to decide.
 
 **Tests:** 19 new in `tests/adminApi.test.ts`, 2 added to `tests/issueApi.test.ts` (body-less requests). Mutation-checked: non-importers listing exporters; non-active exporters listed; an unconfigured permission invented; rules of other org types used; an unknown status accepted; the admin list open to non-superadmins; the empty-body tolerance removed. Each caught. One survived and is an equivalent mutant: removing the route's superadmin check on approve changes nothing observable because `approveOrganization` refuses non-superadmins itself (two independent guards); the "403 on every /admin route" test covers the behavior. Full suite: **297 of 297**.
+
+---
+
+## 2026-09-19, UI-1 step 7: `POST /consignments` (multipart)
+
+**Built**
+- `src/http/consignments.ts` (registered in `src/http/app.ts`) and the dependency `@fastify/multipart` 10.1.1 (compatible with the installed Fastify 5; `npm audit` shows the same 4 dev-only drizzle-kit findings as before and nothing from the new package).
+- `POST /consignments` accepts `multipart/form-data` with `exporterOrgId`, `commodity`, `originCountry`, `destinationCountry`, optional `hsCode`, and one file in a field named `file`. It is a thin wrapper over `submitPurchaseOrder` and answers 201 with `{ consignment }` in the consignment detail shape, so the UI can go straight to the roadmap.
+
+**Behavior and decisions**
+- **The importer is derived from the acting user's organization.** A submitted `importerOrgId` is ignored for ordinary users (tested: they cannot submit for another importer). Superadmin has no organization, so must name the importer with `importerOrgId` (400 if missing or malformed).
+- **Only importer-organization users (and superadmin) may submit: 403 otherwise.** Without this explicit check an exporter user would pass `submitPurchaseOrder`'s authorization (their own org id equals the derived importer id) and be turned away later with a 400, which is the wrong signal.
+- **Every id is validated up front** (a malformed `exporterOrgId` is a 400, never the 500 that the older `POST /purchase-orders` gives; that older route is listed as an open item, unchanged). Blank text fields, a missing or empty file, a file in a differently named field, and a non-multipart request are each a 400. A file over 15 MB is a 413. The stored file name is sanitized by the existing storage layer (tested with `../../etc/passwd`).
+- Core failure behaves exactly as on the JSON route: the PO and consignment are kept in `po_submitted` and the response is 502 with the saved consignment id.
+- The older `POST /purchase-orders` (JSON, base64) is untouched and tested beside the new route. The prompt says to add the endpoint only "if it does not already wrap `submitPurchaseOrder`"; the existing route does, but as JSON with an explicit `importerOrgId`, not multipart with the importer derived, which is what UI-2's upload form needs.
+
+**Tests:** 19 new in `tests/consignmentCreate.test.ts`, using hand-built multipart bodies. Mutation-checked, each caught: the importer taken from the request body; the importer-organization check removed; the exporter id unvalidated; superadmin not required to name the importer; no size limit; any file field name accepted; non-multipart requests not refused. One survived and is an equivalent mutant: removing the route's empty-file check changes nothing because `submitPurchaseOrder` rejects an empty file too (two independent guards). A test-helper bug of mine (an `undefined` argument falling back to the default file, so the "no file" case sent a file) was caught by the tests and fixed. Full suite: **316 of 316**.

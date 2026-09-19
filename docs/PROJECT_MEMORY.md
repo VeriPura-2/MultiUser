@@ -10,7 +10,7 @@ Keep this file short and current. It must stay under about 250 lines because it 
 Update it when the state changes. Do not turn it into a second build log.
 
 Last updated: 2026-09-19
-Tests passing: 297
+Tests passing: 316
 Stages complete: 3 of 3 backend prompts. UI-1 (API surface for the UI) in progress. Prompt 4 (Stripe) not started.
 
 ## Standing rules (Thomas's, apply to every session)
@@ -41,7 +41,7 @@ document compliance for cross-border consignments. Built as a real MVP trial for
 may convert to paying customers, not a throwaway prototype. Pilot lane: Brazil to GB beef.
 
 - Repo: https://github.com/VeriPura-2/MultiUser (branch `main`). Local folder: `Veripura/Control Tower`.
-- Stack: TypeScript, Node 22+, Postgres 17 (Docker), Drizzle ORM, Fastify 5, Vitest.
+- Stack: TypeScript, Node 22+, Postgres 17 (Docker), Drizzle ORM, Fastify 5 (with @fastify/multipart), Vitest.
 - Sibling project: the Columbia Wireless tower demo at `Veripura/Wireless/tower-management-demo` (separate repo, separate rules).
 
 ## Restart and wrap up
@@ -101,7 +101,7 @@ All dates 2026-09-19. Hashes are the pushed ones (history was corrected twice be
 | Project memory, step 1 | `CLAUDE.md`, this file restructured, `BUILD_PROMPTS.md` (the original spec) | `0ec6e2e` |
 | Project memory, step 2 | The enforcement: `scripts/memory-check.mjs`, the git pre-commit hook, the Claude Code Stop hook, 36 tests of the enforcement itself (206 total) | `74bbb58` |
 | Project memory, step 3 | `/pickup` and `/wrapup` commands, `resume.ps1`, the `veripura` PowerShell command, README section, thin auto-memory pointers | `c5aae93` |
-| UI-1: API surface for the UI (in progress) | Step 1: `AUTH_MODE=dev` and `X-Dev-User`, `GET /me`, dev-only `GET /dev/users`, production refuses to start with the dev actor on. Step 2: `npm run seed:dev` sample data. Step 3: `GET /consignments/:id`. Step 4: `GET /action-queue`. Step 5: issue detail and the three issue action endpoints. Step 6: organization directory and superadmin approval endpoints (297 tests total) | see `git log` |
+| UI-1: API surface for the UI (in progress) | Step 1: `AUTH_MODE=dev` and `X-Dev-User`, `GET /me`, dev-only `GET /dev/users`, production refuses to start with the dev actor on. Step 2: `npm run seed:dev` sample data. Step 3: `GET /consignments/:id`. Step 4: `GET /action-queue`. Step 5: issue detail and the three issue action endpoints. Step 6: organization directory and superadmin approval endpoints. Step 7: multipart `POST /consignments` (316 tests total) | see `git log` |
 
 Key decisions (full reasoning in the build log): 404 not 403 for non-parties; a bulk permission
 resolver shared with `resolveDocumentPermissions`; hidden source documents are not named in
