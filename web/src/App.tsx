@@ -8,6 +8,7 @@ import { SidebarLayout } from "./layout/SidebarLayout";
 import { AdminConsole } from "./screens/AdminConsole";
 import { Dashboard } from "./screens/Dashboard";
 import { NotFound } from "./screens/NotFound";
+import { Roadmap } from "./screens/Roadmap";
 
 /** Superadmin has no organization, so the dashboard has nothing to show them: they land on the console. */
 function Home() {
@@ -35,6 +36,7 @@ export function AppRoutes() {
             </RequireSuperadmin>
           }
         />
+        <Route path="/consignments/:consignmentId" element={<Roadmap />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

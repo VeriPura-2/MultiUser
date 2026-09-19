@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "../src/http/app.js";
-import { createSuperadmin, createTradeParties, scenario, submitTestPO } from "./helpers.js";
+import { raiseIssue } from "../src/services/issues.js";
+import { createSuperadmin, createTradeParties, scenario, setRule, submitTestPO, createUserWithRoles } from "./helpers.js";
 
 /**
  * Fields that exist only because the web app's screens need them. Each is additive: it is data the
@@ -35,5 +36,48 @@ describe("GET /consignments: origin and destination (dashboard route column)", (
         ].sort(),
       );
     }
+  });
+});
+
+describe("GET /consignments/:id/checklist: issueId on an open issue (roadmap link)", () => {
+  const raise = (s: Awaited<ReturnType<typeof scenario>>, itemId: string) =>
+    raiseIssue({
+      documentChecklistItemId: itemId,
+      problem: "Carton count mismatch",
+      expectedValue: "480",
+      foundValue: "460",
+      responsibleOrgType: "exporter",
+      actingUser: s.importerAdmin,
+    });
+
+  it("names the issue, and the id opens that issue", async () => {
+    const s = await scenario();
+    const issue = await raise(s, s.packing.item.id);
+    const other = await raise(s, s.cert.item.id);
+
+    const { checklist } = (await get(`/consignments/${s.consignment.id}/checklist`, s.importerAdmin.id)).json();
+    const packing = checklist.find((i: any) => i.checklistItemId === s.packing.item.id);
+    const cert = checklist.find((i: any) => i.checklistItemId === s.cert.item.id);
+    expect(packing.openIssue.issueId).toBe(issue.id);
+    expect(cert.openIssue.issueId).toBe(other.id);
+
+    const opened = await get(`/issues/${packing.openIssue.issueId}`, s.importerAdmin.id);
+    expect(opened.statusCode).toBe(200);
+    expect(opened.json()).toMatchObject({ id: issue.id, problem: "Carton count mismatch" });
+  });
+
+  it("gives an item with no open issue no issue at all, and a status_only viewer nothing about issues", async () => {
+    const s = await scenario();
+    await raise(s, s.packing.item.id);
+    await setRule(s.packing.type, "exporter", "Viewer", { view: "status_only" });
+    const viewer = await createUserWithRoles(s.parties.exporter, ["Viewer"]);
+
+    const admin = (await get(`/consignments/${s.consignment.id}/checklist`, s.importerAdmin.id)).json().checklist;
+    expect(admin.find((i: any) => i.checklistItemId === s.invoice.item.id).openIssue).toBeNull();
+
+    const sealed = (await get(`/consignments/${s.consignment.id}/checklist`, viewer.id)).json().checklist;
+    const item = sealed.find((i: any) => i.checklistItemId === s.packing.item.id);
+    expect(item).not.toHaveProperty("openIssue");
+    expect(JSON.stringify(item)).not.toContain("issueId");
   });
 });

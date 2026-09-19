@@ -1,4 +1,4 @@
-import type { ActionQueueItem, ConsignmentSummary, DevUser, Me, PartyWorkloadRow } from "../src/api/types";
+import type { ActionQueueItem, ConsignmentDetail, ConsignmentSummary, DevUser, FullChecklistItem, Me, PartyWorkloadRow, StatusOnlyChecklistItem } from "../src/api/types";
 import { mockApi, respond } from "./mockApi";
 
 /**
@@ -107,6 +107,70 @@ export function dashboardApi(
     "GET /consignments": { consignments: data.consignments ?? [] },
     "GET /parties/workload": { orgId: user.organization?.id ?? "", counterparties: data.parties ?? [] },
     "GET /action-queue": { orgId: user.organization?.id ?? "", items: data.queue ?? [] },
+    ...extra,
+  });
+}
+
+// Roadmap data -----------------------------------------------------------------------------
+
+export function detail(overrides: Partial<ConsignmentDetail> = {}): ConsignmentDetail {
+  return {
+    id: "a1b2c3d4-0000-4000-8000-000000000000",
+    status: "checklist_received",
+    commodity: "Frozen boneless beef",
+    hsCode: "0202.30",
+    originCountry: "BR",
+    destinationCountry: "GB",
+    importerOrg: { id: "org-importer", name: "Sample Importer Ltd" },
+    exporterOrg: { id: "org-alpha", name: "Sample Exporter Alpha" },
+    createdAt: "2026-09-16T09:30:00.000Z",
+    ...overrides,
+  };
+}
+
+let itemSeq = 0;
+/** A checklist item the viewer has full access to. Flags default to false, as the API would give a read-only role. */
+export function fullItem(overrides: Partial<FullChecklistItem> = {}): FullChecklistItem {
+  itemSeq += 1;
+  return {
+    checklistItemId: `item-${itemSeq}`,
+    documentTypeName: `Sample Document ${itemSeq}`,
+    requiredBy: "exporter",
+    status: "awaiting_upload",
+    category: "Sample Category One",
+    canEdit: false,
+    canDownload: false,
+    canApprove: false,
+    openIssue: null,
+    ...overrides,
+  };
+}
+
+export function statusOnlyItem(overrides: Partial<StatusOnlyChecklistItem> = {}): StatusOnlyChecklistItem {
+  itemSeq += 1;
+  return {
+    checklistItemId: `item-${itemSeq}`,
+    documentTypeName: `Sealed Document ${itemSeq}`,
+    status: "pending",
+    canEdit: false,
+    canDownload: false,
+    canApprove: false,
+    ...overrides,
+  };
+}
+
+/** Mocks a consignment's header and checklist, as `user`. */
+export function roadmapApi(
+  user: Me,
+  data: { detail?: ConsignmentDetail; checklist?: Array<FullChecklistItem | StatusOnlyChecklistItem> } = {},
+  extra: Record<string, unknown> = {},
+) {
+  localStorage.setItem("vp-dev-user", user.userId);
+  const d = data.detail ?? detail();
+  return mockApi({
+    "GET /me": user,
+    "GET /consignments/:id": d,
+    "GET /consignments/:id/checklist": { consignmentId: d.id, consignmentStatus: d.status, checklist: data.checklist ?? [] },
     ...extra,
   });
 }

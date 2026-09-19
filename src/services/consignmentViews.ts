@@ -31,6 +31,8 @@ import { loadActiveActor } from "./actors.js";
 // ---------------------------------------------------------------------------
 
 export interface OpenIssueView {
+  /** So a screen can link straight to the issue. */
+  issueId: string;
   problem: string;
   expectedValue: string | null;
   foundValue: string | null;
@@ -215,6 +217,7 @@ export async function getConsignmentChecklist(
       let openIssue: OpenIssueView | null = null;
       if (issue) {
         openIssue = {
+          issueId: issue.id,
           problem: issue.problem,
           expectedValue: issue.expected_value,
           foundValue: issue.found_value,

@@ -93,6 +93,7 @@ export interface ActionQueueItem {
 }
 
 export interface OpenIssueView {
+  issueId: string;
   problem: string;
   expectedValue: string | null;
   foundValue: string | null;

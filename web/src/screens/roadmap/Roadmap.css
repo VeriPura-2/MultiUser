@@ -1,0 +1,40 @@
+/* Roadmap, from docs/ui-mockups/v2-revised/Roadmap.html. Inline styles there, classes here. */
+
+.rm{min-height:100vh; background:var(--ivory); padding-bottom:40px;}
+.rm-state{max-width:560px;}
+.rm-back-only{font-family:var(--font-ui); text-align:center; margin-top:14px;}
+
+.rm-head{background:var(--paper); border-bottom:1px solid var(--line); padding:24px 44px 0;}
+.rm-head-row{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;}
+.rm-eyebrow{font-family:var(--font-ui); font-size:14px; color:var(--charcoal-soft); text-transform:uppercase; letter-spacing:.08em; margin-bottom:4px;}
+.rm-head h1{font-size:27px; margin:0;}
+.rm-head-actions{display:flex; align-items:center; gap:14px;}
+.rm-back{font-family:var(--font-ui); font-size:15px; color:var(--charcoal-soft); border-bottom:1px solid var(--line);}
+
+.rm-meta{display:flex; gap:12px 34px; flex-wrap:wrap; font-family:var(--font-ui); font-size:14px; color:var(--charcoal-soft); margin:14px 0 18px;}
+.rm-meta > div{display:flex; align-items:center; gap:6px;}
+.rm-meta dt{font-weight:700; color:var(--charcoal);}
+.rm-meta dd{margin:0;}
+.rm-meta-loading{margin:14px 0 18px; max-width:420px;}
+
+.rm-tabs{display:flex; gap:26px;}
+.tab{font-family:var(--font-ui); font-size:15px; font-weight:500; padding:12px 4px; color:var(--charcoal-soft); border-bottom:3px solid transparent;}
+.tab.active{color:var(--charcoal); border-color:var(--gold); font-weight:600;}
+
+.rm-body{max-width:1150px; padding:28px 44px 0;}
+.rm-group{margin-bottom:24px;}
+.gh{font-size:18px; margin:0 0 10px;}
+.gh-count{color:var(--charcoal-soft); font-weight:400;}
+.rm-rows{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px;}
+
+.row{background:var(--paper); border:1px solid var(--line); border-radius:6px; padding:14px 18px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+.row-main{flex:1; min-width:180px;}
+.row-name{font-weight:700; font-size:16px; overflow-wrap:anywhere;}
+.row.flagged{border-color:var(--red-line); background:var(--red-bg);}
+.row-issue{font-size:14px; color:var(--red); margin-top:2px; font-family:var(--font-ui);}
+.upl{background:var(--paper); border:1px solid var(--line); border-radius:4px; padding:6px 12px; font-size:14px; font-weight:700; color:var(--charcoal);}
+
+@media (max-width:900px){
+  .rm-head{padding:20px 20px 0;}
+  .rm-body{padding:22px 20px 0;}
+}
