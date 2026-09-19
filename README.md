@@ -17,7 +17,7 @@ npm install
 Copy-Item .env.example .env     # values already match docker-compose.yml
 npm run db:up                   # starts Postgres on localhost:5433 and waits until healthy
 npm run db:migrate              # applies ./drizzle migrations to the dev database
-npm run db:seed                 # optional: superadmin, document types, sample rules
+npm run db:seed                 # optional: a superadmin and starter document types (no permission rules)
 ```
 
 Postgres is published on host port **5433** (not 5432) so it does not collide with a Postgres
