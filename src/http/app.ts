@@ -5,7 +5,9 @@ import { assertDevModeSafe, devActorEnabled, type ActorOptions } from "./actor.j
 import { consignmentRoutes } from "./consignments.js";
 import { issueRoutes } from "./issues.js";
 import { meRoutes } from "./me.js";
+import { createSampleRuntime, type TrackingRuntime } from "../tracking/runtime.js";
 import { purchaseOrderRoutes } from "./purchaseOrders.js";
+import { trackingRoutes } from "./tracking.js";
 import { viewRoutes } from "./views.js";
 import { webhookRoutes, type WebhookRouteOptions } from "./webhooks.js";
 
@@ -19,6 +21,12 @@ export interface AppOptions {
   actor?: ActorOptions;
   /** Deprecated alias for `actor`, kept so earlier callers and tests keep working. */
   purchaseOrders?: ActorOptions;
+  /**
+   * The position provider and its budget. Left out, the app uses sample positions whatever the
+   * environment says, so an app built in a test can never reach a live provider by accident. The
+   * server builds one from the environment on purpose (see src/server.ts).
+   */
+  tracking?: TrackingRuntime;
 }
 
 /**
@@ -60,6 +68,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(issueRoutes, actorOptions);
   app.register(adminRoutes, actorOptions);
   app.register(consignmentRoutes, actorOptions);
+  app.register(trackingRoutes, { ...actorOptions, tracking: options.tracking ?? createSampleRuntime() });
 
   return app;
 }

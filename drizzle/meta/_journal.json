@@ -22,6 +22,13 @@
       "when": 1789843291014,
       "tag": "0002_vessel_tracking_identifiers_and_positions",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789844446073,
+      "tag": "0003_provider_calls_and_tracking_runs",
+      "breakpoints": true
     }
   ]
 }

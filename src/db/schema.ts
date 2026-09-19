@@ -396,6 +396,47 @@ export const vessel_positions = pgTable(
   ],
 );
 
+/**
+ * Every call made to a position provider that has a call allowance (VesselAPI's free plan is 150 a
+ * month). A row is written BEFORE the request is sent, with status "started", and completed
+ * afterwards with the HTTP status, "timeout" or "network_error", so a crash cannot lose a call that
+ * may already have been counted by the provider. Failed calls are counted in the budget too, since
+ * the provider's own rule for them is not certain. `retry_after_seconds` is what a 429 asked for.
+ */
+export const provider_calls = pgTable(
+  "provider_calls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    provider: text("provider").notNull(),
+    called_at: timestamp("called_at", { withTimezone: true }).notNull().defaultNow(),
+    // For example "scheduled_refresh" or "manual_refresh".
+    purpose: text("purpose").notNull(),
+    status: text("status").notNull(),
+    vessels_requested: integer("vessels_requested").notNull(),
+    retry_after_seconds: integer("retry_after_seconds"),
+  },
+  (t) => [index("provider_calls_provider_time_idx").on(t.provider, t.called_at)],
+);
+
+/** One run of the position refresh job, scheduled or manual, including runs that found nothing to do. */
+export const tracking_runs = pgTable(
+  "tracking_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    trigger: text("trigger").notNull(),
+    provider: text("provider").notNull(),
+    started_at: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finished_at: timestamp("finished_at", { withTimezone: true }),
+    vessels_selected: integer("vessels_selected").notNull().default(0),
+    calls_made: integer("calls_made").notNull().default(0),
+    positions_stored: integer("positions_stored").notNull().default(0),
+    // Why the run stopped early or did nothing, for example "no_vessels" or "budget". Null when it ran to the end.
+    stopped_reason: text("stopped_reason"),
+    error: text("error"),
+  },
+  (t) => [index("tracking_runs_started_idx").on(t.started_at)],
+);
+
 // ---------------------------------------------------------------------------
 // Row types
 // ---------------------------------------------------------------------------
@@ -412,3 +453,5 @@ export type DocumentChecklistItem = typeof document_checklist_items.$inferSelect
 export type Issue = typeof issues.$inferSelect;
 export type WebhookEvent = typeof webhook_events.$inferSelect;
 export type VesselPosition = typeof vessel_positions.$inferSelect;
+export type ProviderCall = typeof provider_calls.$inferSelect;
+export type TrackingRun = typeof tracking_runs.$inferSelect;

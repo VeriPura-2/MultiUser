@@ -14,7 +14,7 @@ import {
   user_role_assignments,
   users,
 } from "../src/db/schema.js";
-import { SAMPLE_SUPERADMIN_EMAIL, assertLocalDatabase, sampleViewLevel, seedDev } from "../src/dev/seedDev.js";
+import { SAMPLE_SUPERADMIN_EMAIL, SAMPLE_VESSELS, assertLocalDatabase, sampleViewLevel, seedDev } from "../src/dev/seedDev.js";
 import { buildApp } from "../src/http/app.js";
 import { STANDARD_ROLES } from "../src/roles.js";
 
@@ -181,5 +181,19 @@ describe("assertLocalDatabase", () => {
     }
     expect(() => assertLocalDatabase(undefined)).toThrow(/DATABASE_URL/);
     expect(() => assertLocalDatabase("not a url")).toThrow(/valid URL/);
+  });
+});
+
+describe("seedDev vessels", () => {
+  it("gives the three live sample consignments the made-up vessels, and no others", async () => {
+    await seedDev();
+    const rows = await db().select().from(consignments);
+    const withVessel = rows.filter((c) => c.vessel_mmsi !== null);
+    expect(withVessel.map((c) => c.vessel_mmsi).sort()).toEqual(SAMPLE_VESSELS.map((v) => v.vesselMmsi).sort());
+    expect(withVessel.every((c) => !["completed", "cancelled"].includes(c.status))).toBe(true);
+    for (const c of withVessel) {
+      const v = SAMPLE_VESSELS.find((x) => x.vesselMmsi === c.vessel_mmsi)!;
+      expect([c.vessel_imo, c.vessel_name]).toEqual([v.vesselImo, v.vesselName]);
+    }
   });
 });

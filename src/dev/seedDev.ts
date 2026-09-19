@@ -35,6 +35,18 @@ import { inviteUser } from "../services/users.js";
  */
 
 export const SAMPLE_EMAIL_DOMAIN = "sample.veripura.test";
+/**
+ * Made-up vessels for the three live sample consignments, so the map has something to show. The
+ * numbers are deliberately unusable for a real ship: IMO numbers in the 1000000 range have not
+ * been issued, and MMSI 999... is not an allocated prefix, so switching to a live provider later
+ * could never track a real vessel on sample data. The IMOs do pass the check digit.
+ */
+export const SAMPLE_VESSELS: Array<{ vesselImo: string; vesselMmsi: string; vesselName: string }> = [
+  { vesselImo: "1000007", vesselMmsi: "999000001", vesselName: "Sample Vessel One" },
+  { vesselImo: "1100003", vesselMmsi: "999000002", vesselName: "Sample Vessel Two" },
+  { vesselImo: "1200009", vesselMmsi: "999000003", vesselName: "Sample Vessel Three" },
+];
+
 export const SAMPLE_SUPERADMIN_EMAIL = `superadmin@${SAMPLE_EMAIL_DOMAIN}`;
 
 /** Refuses to run against anything but a database on this machine. */
@@ -177,8 +189,8 @@ export async function seedDev(log: (line: string) => void = () => {}): Promise<S
 
   // Consignments in different states, made through the real submit flow.
   const sample = { originCountry: "BR", destinationCountry: "GB", fileName: "sample-po.pdf", fileBuffer: Buffer.from("SAMPLE PURCHASE ORDER (local sandbox data)") };
-  const submit = (exporter: string, commodity: string, hsCode: string) =>
-    submitPurchaseOrder({ importerOrgId: importerId, exporterOrgId: orgIds.get(exporter)!, commodity, hsCode, actingUser: importerAdmin, ...sample });
+  const submit = (exporter: string, commodity: string, hsCode: string, vessel: Record<string, string> = {}) =>
+    submitPurchaseOrder({ importerOrgId: importerId, exporterOrgId: orgIds.get(exporter)!, commodity, hsCode, actingUser: importerAdmin, ...sample, ...vessel });
 
   const itemOf = async (consignment: Consignment, documentName: string) => {
     const [doc] = docTypes.filter((d) => d.name === documentName);
@@ -196,11 +208,11 @@ export async function seedDev(log: (line: string) => void = () => {}): Promise<S
 
   // 1. Waiting on core: accepted, no checklist yet (checklist_pending).
   setCoreClient(acceptsWithoutChecklist);
-  const waiting = await submit("bravo", "Frozen poultry", "0207.14");
+  const waiting = await submit("bravo", "Frozen poultry", "0207.14", SAMPLE_VESSELS[0]);
   setCoreClient(undefined);
 
   // 2. Checklist received, with an open issue and a correction request.
-  const received = await submit("alpha", "Chilled beef", "0201.30");
+  const received = await submit("alpha", "Chilled beef", "0201.30", SAMPLE_VESSELS[1]);
   const cert = await itemOf(received, "Export Health Certificate");
   const invoice = await itemOf(received, "Commercial Invoice");
   const packing = await itemOf(received, "Packing List");
@@ -225,7 +237,7 @@ export async function seedDev(log: (line: string) => void = () => {}): Promise<S
   await requestCorrection({ issueId: quantity.id, message: "Please confirm the carton count and reissue the packing list.", actingUser: importerAdmin });
 
   // 3. Active, mostly verified, one resolved issue in its history.
-  const active = await submit("alpha", "Frozen beef", "0202.30");
+  const active = await submit("alpha", "Frozen beef", "0202.30", SAMPLE_VESSELS[2]);
   await setItem(active, "Commercial Invoice", "verified");
   await setItem(active, "Packing List", "verified");
   await setItem(active, "Bill of Lading", "pending");
