@@ -455,3 +455,52 @@ export async function getPartyWorkload(
     return { orgId, counterparties };
   }, READ_ONLY_SNAPSHOT);
 }
+
+// ---------------------------------------------------------------------------
+// UI-1: consignment detail
+// ---------------------------------------------------------------------------
+
+export interface ConsignmentDetail {
+  id: string;
+  status: ConsignmentStatus;
+  commodity: string;
+  hsCode: string | null;
+  originCountry: string;
+  destinationCountry: string;
+  importerOrg: { id: string; name: string };
+  exporterOrg: { id: string; name: string };
+  createdAt: Date;
+}
+
+/**
+ * One consignment's header, for the roadmap screen. Same authorization and the same 404 choice
+ * as the checklist: a user who is not a party gets exactly what they would for a consignment
+ * that does not exist. Only fields the schema has. There is no quantity, so none is returned.
+ */
+export async function getConsignmentDetail(consignmentId: string, actingUser: UserRef): Promise<ConsignmentDetail> {
+  return getDb().transaction(async (tx) => {
+    const actor = await loadActiveActor(actingUser, tx);
+    if (!UUID_PATTERN.test(consignmentId)) throw consignmentNotFound();
+
+    const [c] = await tx.select().from(consignments).where(eq(consignments.id, consignmentId));
+    if (!c || !isPartyTo(actor, c)) throw consignmentNotFound();
+
+    const orgs = await tx
+      .select({ id: organizations.id, name: organizations.name })
+      .from(organizations)
+      .where(inArray(organizations.id, [c.importer_org_id, c.exporter_org_id]));
+    const nameOf = new Map(orgs.map((o) => [o.id, o.name]));
+
+    return {
+      id: c.id,
+      status: c.status,
+      commodity: c.commodity,
+      hsCode: c.hs_code,
+      originCountry: c.origin_country,
+      destinationCountry: c.destination_country,
+      importerOrg: { id: c.importer_org_id, name: nameOf.get(c.importer_org_id) ?? "" },
+      exporterOrg: { id: c.exporter_org_id, name: nameOf.get(c.exporter_org_id) ?? "" },
+      createdAt: c.created_at,
+    };
+  }, READ_ONLY_SNAPSHOT);
+}

@@ -556,3 +556,17 @@ Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-1 (eight numbered items). E
 **Verified:** seeded the real local dev database (1 user and 0 orgs before; 9 users, 6 orgs, 5 consignments, 3 issues, 100 rules after) and ran it a second time to confirm the idempotent message.
 
 **Tests:** 13 new in `tests/seedDev.test.ts`. Full suite: **233 of 233**.
+
+---
+
+## 2026-09-19, UI-1 step 3: `GET /consignments/:consignmentId`
+
+**Built**
+- `getConsignmentDetail` in `src/services/consignmentViews.ts` and the route in `src/http/views.ts`. Returns `{ id, status, commodity, hsCode, originCountry, destinationCountry, importerOrg: { id, name }, exporterOrg: { id, name }, createdAt }`.
+
+**Behavior and decisions**
+- Same authorization and the same 404 choice as the checklist endpoint: superadmin, or an active user of the importer or exporter org. Anyone else gets a 404 whose body is identical to the one for a consignment that does not exist (so the two cannot be told apart). A malformed id is 404. No acting user is 401, an inactive user is 403.
+- Only fields the schema has. There is no quantity, so none is offered (the mockup shows one; the prompt says the UI must not). A test asserts a list of tempting extra fields is absent. `hsCode` is null when there is none.
+- The route `/consignments/:consignmentId` sits beside `/consignments/:consignmentId/checklist`. A test confirms both resolve.
+
+**Tests:** 6 new in `tests/consignmentDetail.test.ts`. Mutation-checked: removing the party check (a stranger could read) and adding an extra field are each caught. Full suite: **239 of 239**.
