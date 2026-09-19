@@ -37,6 +37,19 @@ automatically on first run, and every table is truncated before each test. The r
 start unless the database name ends in `_test`, so it cannot be pointed at the dev database by
 accident. Test files run serially because they share that one database.
 
+## Running the server
+
+```powershell
+npm run dev        # http://127.0.0.1:3000, loopback only
+```
+
+`VERIPURA_CORE_MODE=stub` (the default) needs no network: submitting a PO returns a hardcoded
+checklist after a short delay. `live` posts to `VERIPURA_CORE_WEBHOOK_URL` and expects core to
+call back `POST /webhooks/veripura-core/checklist`, signed with `X-VeriPura-Signature`
+(HMAC-SHA256 of the raw body using `VERIPURA_CORE_WEBHOOK_SECRET`). `POST /purchase-orders`
+returns 401 until real sign-in exists, unless `ALLOW_DEV_ACTOR_HEADER=true` (sandbox only, trusts
+an `X-Acting-User-Id` header). See `.env.example` for every variable.
+
 ## Schema changes
 
 Edit `src/db/schema.ts`, then:
@@ -54,7 +67,10 @@ Commit the generated SQL and the `drizzle/meta` snapshot together with the schem
 src/db/          schema, client, migration runner
 src/permissions/ permission engine
 src/audit/       recordAudit helper
-src/services/    organization and user lifecycle (framework-agnostic)
+src/services/    lifecycle, consignments, checklist, issues (framework-agnostic)
+src/core/        VeriPura core contract: client interface (stub and live), signing, send
+src/storage/     file storage interface (local disk default, swappable)
+src/http/        thin Fastify layer: POST /webhooks/veripura-core/checklist, POST /purchase-orders
 scripts/         seed
 tests/           Vitest suite
 docs/build-log.md  append-only record of what was built and why

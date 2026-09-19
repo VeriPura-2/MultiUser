@@ -256,3 +256,41 @@ Stage 1 code (`src/db`, `src/permissions`, `src/audit`, `src/services/organizati
 - Concurrency: each operation locks the checklist item row first, then the issue, everywhere, so concurrent raise/resolve on one item serialize and cannot deadlock or race on the item's status.
 
 **Tests:** none yet (step 6). `tsc --noEmit` clean.
+
+---
+
+## 2026-09-19, Stage 2, Step 6: Tests
+
+**Built**
+- `tests/purchaseOrders.test.ts` (29), `tests/webhook.test.ts` (31), `tests/issues.test.ts` (17), plus stage 2 helpers in `tests/helpers.ts` (`createTradeParties`, `submitTestPO`, `RecordingCoreClient`, `postChecklist`, and others). Stage 1 files are unchanged: permissions 22, lifecycle 25, audit 9.
+- Test harness: `vitest.config.ts` now pins `VERIPURA_CORE_MODE=stub`, a 0 ms stub delay, a test webhook secret, and `ALLOW_DEV_ACTOR_HEADER=false`, so the suite never depends on a developer's local `.env`. `tests/setup.ts` resets in-memory file storage and the core client before every test.
+
+**Coverage of the prompt's list**
+- Submitting a PO as a user outside the importer org is rejected (also for the exporter's own admin, an invited user, and a forged `organization_id`), and nothing is created: no consignment, PO, webhook event, consignment audit row, core call, or stored file.
+- Stub end to end: consignment reaches `checklist_received`, four `awaiting_upload` items with the right `required_by`, PO row and stored file, one outbound `sent` and one inbound `received` event with the documented payload, and `po_submitted`, `sent_to_core`, `checklist_received` audit rows with the right actors.
+- Inbound endpoint rejects an invalid signature (six variants: wrong, well-formed but wrong, over a different body, wrong secret, missing header, malformed) with 401 and leaves no trace (no items, no status change, no event rows, no audit rows). Also: tampered body with a valid signature over the original, prefix form accepted, 503 when no secret is configured.
+- Replaying the same payload twice, three times, and six times concurrently creates no duplicate items.
+- `externalCoreId` populates when null; a second payload with a different value does not overwrite it (and the audit row records the ignored value).
+- Raising an issue flags the item; resolving returns it to `pending`, never `verified`; every issue transition writes its audit row with the right action, target, actor, and details.
+
+**Beyond the list:** core outage keeps the PO and can be retried; live client via a fake `fetch` (payload, signature, non-2xx and network errors); env-based client selection; filename sanitizing; `POST /purchase-orders` (401 by default, 201, 403, 400, 502); payload validation cases; unknown consignment (404, logged as failed with no consignment id); cancelled consignment (409); document types matched case-insensitively; multi-issue item stays `flagged`; concurrent raise and resolve on one item; table CHECK constraints on issues.
+
+**Defects the tests caught during this step**
+- `POST` with `Content-Type: text/plain` was not rejected with 415. Fastify's default text parser gave the handler a string. It was not a signature bypass (the HMAC still had to match the same bytes) but it accepted a content type the endpoint should not. Fixed: the webhook plugin now removes Fastify's default parsers and accepts only its raw-bytes `application/json` parser, and the handler asserts it received a Buffer.
+- Found by review before any test existed, then locked in by a test: the `eq(...) && eq(...)` in `sendToVeriPuraCore` (see Step 3).
+
+**Verification**
+- Full suite: **133 of 133 passing**, run from a freshly dropped and recreated test database. `tsc --noEmit` clean. No em dashes in any file.
+- Mutation check, to confirm the tests can fail. Each of these turned the suite red at the expected tests, then the source was restored: dropping the id filter in `sendToVeriPuraCore`; making `verifySignature` always true; letting `externalCoreId` be overwritten; making `resolveIssue` set `verified`; making `resolveIssue` ignore other unresolved issues; skipping the importer-org check in `submitPurchaseOrder`; skipping issue authorization; restoring Fastify's default content-type parsers.
+- The dev database (`veripura`) was confirmed untouched by the suite.
+
+**Open items carried forward**
+- Real sign-in replaces the `X-Acting-User-Id` stand-in (separate prompt). Fail closed for deactivated users and suspended orgs belongs there too (stage 1 note).
+- The contract with core is unconfirmed: the outbound request signing, the response shape for accepted submissions, and the callback payload should be confirmed with Onno's team before the live client is used. `VERIPURA_CORE_MODE=live` has only been exercised against a fake `fetch`.
+- No automatic retry when core is unreachable; a failed send is retried by calling `sendToVeriPuraCore` again.
+- An item that was `awaiting_upload` when flagged returns to `pending` on resolve (per the prompt); `item_status_before` is in the `issue.raised` audit metadata for a later stage to restore it properly.
+- Issue permissions are intentionally permissive; tighten to a specific role or system actor when validation exists.
+- `audit_log` is still not immutable at the database level.
+- `npm audit`: 4 moderate findings in `drizzle-kit`'s dev-only transitive `esbuild`; the suggested fix is a breaking downgrade. Left as is.
+
+**Stage 2 status:** complete. Steps 1 to 6 built and tested. No document upload and no automated validation, per the prompt.

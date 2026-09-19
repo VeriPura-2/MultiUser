@@ -19,6 +19,9 @@ export interface WebhookRouteOptions {
  * Registered as an encapsulated plugin so the raw-bytes JSON parser applies only here.
  */
 export const webhookRoutes: FastifyPluginAsync<WebhookRouteOptions> = async (app, options) => {
+  // Drop Fastify's default parsers (JSON and text/plain) inside this plugin only. The one parser
+  // below hands the handler the exact bytes that were signed, and any other content type is a 415.
+  app.removeAllContentTypeParsers();
   app.addContentTypeParser("application/json", { parseAs: "buffer" }, (_req, body, done) => {
     done(null, body);
   });
@@ -30,7 +33,12 @@ export const webhookRoutes: FastifyPluginAsync<WebhookRouteOptions> = async (app
       return reply.code(503).send({ error: "webhook_secret_not_configured" });
     }
 
-    const raw = request.body as Buffer;
+    const raw = request.body;
+    if (!Buffer.isBuffer(raw)) {
+      // Cannot happen with the parser above; guards the signature check against ever running
+      // over something other than the raw request bytes.
+      return reply.code(400).send({ error: "invalid_payload", message: "Body must be raw JSON" });
+    }
     const signature = request.headers[SIGNATURE_HEADER];
     if (!verifySignature(raw, Array.isArray(signature) ? signature[0] : signature, secret)) {
       return reply.code(401).send({ error: "invalid_signature" });

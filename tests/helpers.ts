@@ -1,11 +1,18 @@
 import { and, eq } from "drizzle-orm";
+import type { FastifyInstance } from "fastify";
+import { signBody } from "../src/core/signature.js";
+import type { CoreConsignmentPayload, CoreSubmitResult, VeriPuraCoreClient } from "../src/core/types.js";
 import { getDb } from "../src/db/client.js";
 import {
+  consignments,
+  document_checklist_items,
   document_permission_rules,
   document_types,
   org_roles,
   user_role_assignments,
   users,
+  type Consignment,
+  type DocumentChecklistItem,
   type DocumentType,
   type Organization,
   type OrgRole,
@@ -14,6 +21,7 @@ import {
   type ViewLevel,
 } from "../src/db/schema.js";
 import type { StandardRoleName } from "../src/roles.js";
+import { submitPurchaseOrder } from "../src/services/consignments.js";
 import { approveOrganization, proposeOrganization } from "../src/services/organizations.js";
 
 let counter = 0;
@@ -84,4 +92,73 @@ export async function setRule(
       can_download: grant.download ?? false,
       can_approve: grant.approve ?? false,
     });
+}
+
+// ---------------------------------------------------------------------------
+// Stage 2 helpers
+// ---------------------------------------------------------------------------
+
+export const TEST_WEBHOOK_SECRET = "test-webhook-secret";
+
+export interface TradeParties {
+  importer: TestOrg;
+  exporter: TestOrg;
+}
+
+export async function createTradeParties(): Promise<TradeParties> {
+  return { importer: await createActiveOrg("importer"), exporter: await createActiveOrg("exporter") };
+}
+
+/** A core client that records calls and returns whatever `respond` says (no checklist by default). */
+export class RecordingCoreClient implements VeriPuraCoreClient {
+  readonly calls: CoreConsignmentPayload[] = [];
+  constructor(private readonly respond: (p: CoreConsignmentPayload) => Promise<CoreSubmitResult> | CoreSubmitResult = () => ({})) {}
+  async submitConsignment(payload: CoreConsignmentPayload): Promise<CoreSubmitResult> {
+    this.calls.push(payload);
+    return this.respond(payload);
+  }
+}
+
+export const PO_DEFAULTS = {
+  commodity: "Frozen beef",
+  originCountry: "BR",
+  destinationCountry: "GB",
+  fileName: "po-1001.pdf",
+  fileBuffer: Buffer.from("%PDF-1.4 fake purchase order"),
+};
+
+/** Submits a PO as the importer's admin through the real flow (stub core unless overridden). */
+export async function submitTestPO(parties: TradeParties, overrides: Partial<Parameters<typeof submitPurchaseOrder>[0]> = {}) {
+  return submitPurchaseOrder({
+    importerOrgId: parties.importer.org.id,
+    exporterOrgId: parties.exporter.org.id,
+    actingUser: parties.importer.admin,
+    ...PO_DEFAULTS,
+    ...overrides,
+  });
+}
+
+export async function checklistItemsOf(consignment: Pick<Consignment, "id">): Promise<DocumentChecklistItem[]> {
+  return getDb().select().from(document_checklist_items).where(eq(document_checklist_items.consignment_id, consignment.id));
+}
+
+export async function reloadConsignment(id: string): Promise<Consignment> {
+  const [row] = await getDb().select().from(consignments).where(eq(consignments.id, id));
+  return row!;
+}
+
+/** POSTs a JSON body to the checklist webhook, signed with the test secret unless told otherwise. */
+export async function postChecklist(
+  app: FastifyInstance,
+  body: unknown,
+  opts: { signature?: string | null; secret?: string } = {},
+) {
+  const raw = typeof body === "string" ? body : JSON.stringify(body);
+  const signature = opts.signature === undefined ? signBody(raw, opts.secret ?? TEST_WEBHOOK_SECRET) : opts.signature;
+  return app.inject({
+    method: "POST",
+    url: "/webhooks/veripura-core/checklist",
+    headers: { "content-type": "application/json", ...(signature ? { "x-veripura-signature": signature } : {}) },
+    payload: raw,
+  });
 }

@@ -13,7 +13,15 @@ export default defineConfig({
     // so files must not run in parallel.
     fileParallelism: false,
     // The app code reads DATABASE_URL. Point it at the test database, never the dev one.
-    env: { DATABASE_URL: testDatabaseUrl },
+    // Pin every integration setting so the suite never depends on a developer's local .env.
+    env: {
+      DATABASE_URL: testDatabaseUrl,
+      VERIPURA_CORE_MODE: "stub",
+      VERIPURA_CORE_STUB_DELAY_MS: "0",
+      VERIPURA_CORE_WEBHOOK_URL: "",
+      VERIPURA_CORE_WEBHOOK_SECRET: "test-webhook-secret",
+      ALLOW_DEV_ACTOR_HEADER: "false",
+    },
     testTimeout: 20_000,
     hookTimeout: 30_000,
   },
