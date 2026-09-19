@@ -10,8 +10,8 @@ Keep this file short and current. It must stay under about 250 lines because it 
 Update it when the state changes. Do not turn it into a second build log.
 
 Last updated: 2026-09-19
-Tests passing: 316
-Stages complete: 3 of 3 backend prompts. UI-1 (API surface for the UI) in progress. Prompt 4 (Stripe) not started.
+Tests passing: 324
+Stages complete: 3 of 3 backend prompts, and UI-1 (API surface for the UI). UI-2 (the web app) and Prompt 4 (Stripe) not started.
 
 ## Standing rules (Thomas's, apply to every session)
 
@@ -66,7 +66,7 @@ Copy-Item .env.example .env
 npm run db:up        # Postgres on localhost:5433 (5432 is taken on this machine)
 npm run db:migrate
 npm test             # needs the sandbox up; uses a separate veripura_test database
-npm run dev          # http://127.0.0.1:3000
+npm run dev          # http://127.0.0.1:3100 (3000 is taken by Next.js dev servers on this machine)
 ```
 
 ## Map
@@ -101,7 +101,7 @@ All dates 2026-09-19. Hashes are the pushed ones (history was corrected twice be
 | Project memory, step 1 | `CLAUDE.md`, this file restructured, `BUILD_PROMPTS.md` (the original spec) | `0ec6e2e` |
 | Project memory, step 2 | The enforcement: `scripts/memory-check.mjs`, the git pre-commit hook, the Claude Code Stop hook, 36 tests of the enforcement itself (206 total) | `74bbb58` |
 | Project memory, step 3 | `/pickup` and `/wrapup` commands, `resume.ps1`, the `veripura` PowerShell command, README section, thin auto-memory pointers | `c5aae93` |
-| UI-1: API surface for the UI (in progress) | Step 1: `AUTH_MODE=dev` and `X-Dev-User`, `GET /me`, dev-only `GET /dev/users`, production refuses to start with the dev actor on. Step 2: `npm run seed:dev` sample data. Step 3: `GET /consignments/:id`. Step 4: `GET /action-queue`. Step 5: issue detail and the three issue action endpoints. Step 6: organization directory and superadmin approval endpoints. Step 7: multipart `POST /consignments` (316 tests total) | see `git log` |
+| UI-1: API surface for the UI | All eight items: `AUTH_MODE=dev` and `GET /me`, `npm run seed:dev`, consignment detail, action queue, issue detail and actions, org directory and superadmin approval, multipart `POST /consignments`, and an end-to-end journey test (324 tests total). Verified against the real server on port 3100. | see `git log` |
 
 Key decisions (full reasoning in the build log): 404 not 403 for non-parties; a bulk permission
 resolver shared with `resolveDocumentPermissions`; hidden source documents are not named in
@@ -125,10 +125,7 @@ paths share `applyChecklist`; a failed core send keeps the PO and is retryable.
 
 ## Next work
 
-1. **UI-1** (the API surface the screens need) then **UI-2** (the React web app), from
-   `docs/veripura-cli-ui-prompts.md`. UI-1 is the immediate next stage. Note UI-1 names its dev
-   actor mechanism `AUTH_MODE=dev` with an `X-Dev-User` header, while the code today uses
-   `ALLOW_DEV_ACTOR_HEADER` with `X-Acting-User-Id`. Reconcile deliberately and record it.
+1. **UI-2** (the React web app), from `docs/veripura-cli-ui-prompts.md`. Its mockups must first be copied to `docs/ui-mockups/v2-revised/` (already there, untracked). It builds against the UI-1 endpoints listed in the README. Note the backend defaults to port 3100.
 2. Prompt 4 (Stripe billing): create a customer on org approval, a checkout and subscription
    flow, a webhook keeping `billing_status` in sync, and deliberately no access enforcement yet.
    Columns already exist. Description in `docs/BUILD_PROMPTS.md`, notes section.

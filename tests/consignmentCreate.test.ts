@@ -13,43 +13,18 @@ import {
   createSuperadmin,
   createTradeParties,
   createUserWithRoles,
+  multipartForm,
+  type FormFile,
 } from "./helpers.js";
 
 const db = () => getDb();
 const app = buildApp({ actor: { allowDevActorHeader: true } });
 
-interface FormFile {
-  /** The form field name. The endpoint only accepts "file". */
-  field?: string;
-  name: string;
-  content: Buffer;
-}
-
-/** Builds a real multipart/form-data body. app.inject has no form helper of its own. */
-function form(fields: Record<string, string>, file?: FormFile) {
-  const boundary = `----vptest${Math.random().toString(16).slice(2)}`;
-  const parts: Buffer[] = [];
-  for (const [name, value] of Object.entries(fields)) {
-    parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`));
-  }
-  if (file) {
-    parts.push(
-      Buffer.from(
-        `--${boundary}\r\nContent-Disposition: form-data; name="${file.field ?? "file"}"; filename="${file.name}"\r\nContent-Type: application/pdf\r\n\r\n`,
-      ),
-      file.content,
-      Buffer.from("\r\n"),
-    );
-  }
-  parts.push(Buffer.from(`--${boundary}--\r\n`));
-  return { payload: Buffer.concat(parts), contentType: `multipart/form-data; boundary=${boundary}` };
-}
-
 const PO_FILE: FormFile = { name: "po-1001.pdf", content: Buffer.from("%PDF-1.4 a real-looking purchase order") };
 
 /** Pass `null` for no file at all (an `undefined` would fall back to the default file). */
 const submit = (actorId: string | undefined, fields: Record<string, string>, file: FormFile | null = PO_FILE) => {
-  const { payload, contentType } = form(fields, file ?? undefined);
+  const { payload, contentType } = multipartForm(fields, file ?? undefined);
   return app.inject({
     method: "POST",
     url: "/consignments",

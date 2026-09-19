@@ -10,3 +10,6 @@ dist/
 # Design source documents that live beside the code but are not part of this repo.
 Veripura_Comparison_Two_Product_Architecture_Documents.docx
 trade_compliance_control_tower_design.pdf
+
+# Local test-runner output (vitest writes here when a JSON reporter is used).
+.vitest/

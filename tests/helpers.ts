@@ -188,3 +188,34 @@ export async function scenario(parties?: TradeParties, overrides: Parameters<typ
   };
 }
 export type Scenario = Awaited<ReturnType<typeof scenario>>;
+
+// ---------------------------------------------------------------------------
+// multipart/form-data
+// ---------------------------------------------------------------------------
+
+export interface FormFile {
+  /** The form field name. POST /consignments only accepts "file". */
+  field?: string;
+  name: string;
+  content: Buffer;
+}
+
+/** Builds a real multipart/form-data body. app.inject has no form helper of its own. */
+export function multipartForm(fields: Record<string, string>, file?: FormFile) {
+  const boundary = `----vptest${Math.random().toString(16).slice(2)}`;
+  const parts: Buffer[] = [];
+  for (const [name, value] of Object.entries(fields)) {
+    parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`));
+  }
+  if (file) {
+    parts.push(
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${file.field ?? "file"}"; filename="${file.name}"\r\nContent-Type: application/pdf\r\n\r\n`,
+      ),
+      file.content,
+      Buffer.from("\r\n"),
+    );
+  }
+  parts.push(Buffer.from(`--${boundary}--\r\n`));
+  return { payload: Buffer.concat(parts), contentType: `multipart/form-data; boundary=${boundary}` };
+}

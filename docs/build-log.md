@@ -654,3 +654,39 @@ Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-1 (eight numbered items). E
 - The older `POST /purchase-orders` (JSON, base64) is untouched and tested beside the new route. The prompt says to add the endpoint only "if it does not already wrap `submitPurchaseOrder`"; the existing route does, but as JSON with an explicit `importerOrgId`, not multipart with the importer derived, which is what UI-2's upload form needs.
 
 **Tests:** 19 new in `tests/consignmentCreate.test.ts`, using hand-built multipart bodies. Mutation-checked, each caught: the importer taken from the request body; the importer-organization check removed; the exporter id unvalidated; superadmin not required to name the importer; no size limit; any file field name accepted; non-multipart requests not refused. One survived and is an equivalent mutant: removing the route's empty-file check changes nothing because `submitPurchaseOrder` rejects an empty file too (two independent guards). A test-helper bug of mine (an `undefined` argument falling back to the default file, so the "no file" case sent a file) was caught by the tests and fixed. Full suite: **316 of 316**.
+
+---
+
+## 2026-09-19, UI-1 step 8: tests, and verification of the whole stage
+
+**Coverage of the prompt's list.** Each item was checked against a specific test rather than assumed:
+- `/me` for a superadmin, a normal user, and an unauthenticated request: `tests/me.test.ts`.
+- The server refusing to start with `AUTH_MODE=dev` and `NODE_ENV=production`: `tests/me.test.ts` (also for the deprecated switch and for an explicit option).
+- `/action-queue` omitting hidden items, hiding issue detail for status_only items, `actionableByMyOrg`, and flagged before awaiting_upload: `tests/actionQueue.test.ts`.
+- `/issues/:id` returning 404 when the parent item is status_only or hidden: `tests/issueApi.test.ts`.
+- The issue action endpoints writing the expected audit rows: `tests/issueApi.test.ts`.
+- Admin endpoints returning 403 for a non-superadmin, and approval creating the five roles: `tests/adminApi.test.ts`.
+- `/organizations/exporters` excluding non-active and non-exporter organizations: `tests/adminApi.test.ts`.
+- Consignment detail following the checklist's 404/403 rules: `tests/consignmentDetail.test.ts`.
+
+**Added in this step:** `tests/uiJourney.test.ts` (8 tests), which walks the API the way the UI will, over the seeded sample data: the dev switcher and `/me`; the importer's dashboard (five consignments, an action queue whose flagged items open as issues); working an issue open, correction requested, resolved with the queue following, including a body-less POST; the exporter's side; the importer's Viewer sealed to status only with issues a 404; the logistics org shut out; a purchase order submitted through the multipart form appearing everywhere it should; and a superadmin approving a new organization that then appears in the importer's exporter list. `multipartForm` moved into `tests/helpers.ts` and is shared with `tests/consignmentCreate.test.ts`.
+
+**Verified against the real server, not only `inject`.** With the seeded dev database, the server was started on a real port and called over HTTP: `/dev/users` (9 users), `/me`, five consignments, an action queue whose first item is flagged, an issue with its activity and available actions, the exporter list for the PO form, the Viewer's queue with nothing exposed, the superadmin list, 403 for an importer on `/admin/organizations`, 401 with no user, and real multipart parsing over the socket (two deliberately invalid submissions returned 400 and created nothing). No server errors were logged.
+
+**Finding from that run: port 3000 is taken on this machine.** The first attempt returned an HTML page, because a Next.js dev server (the tower demo) already listens on port 3000 and the requests were reaching it. Even the first `/health` "success" was from the wrong server. The default port is now **3100** (`src/server.ts`, `.env.example`, README, `docs/PROJECT_MEMORY.md`, and the local `.env`), the same way Postgres uses 5433. UI-2's dev proxy should target 3100.
+
+**Repository hygiene found and fixed.** `.vitest/json/output.json` (a 19 KB test-report file) had been committed and pushed since stage 1. It was written when a JSON reporter was first tried for counting tests per file, in a commit made before explicit-path staging became the rule. Contents are only test names and results (no secrets). It is now untracked and `.vitest/` is gitignored. It remains in pushed history; rewriting shared history for that was judged not worth it.
+
+**Open items raised by this stage (also in `docs/PROJECT_MEMORY.md`)**
+- Decision for Thomas: `db:seed` invented document categories that `seed:dev` (correctly) leaves alone, so the dev database still carries them.
+- Decision for Thomas: `POST /purchase-orders` returns 500 for a malformed `exporterOrgId`; a small fix, not made unasked.
+- The issue-visibility gate lives at the HTTP boundary, and the service functions beneath it still check only party membership.
+- `GET /dev/users` and the `AUTH_MODE=dev` header must not exist in production. The server refuses to start with the mechanism on under `NODE_ENV=production`, but real sign-in is still needed before any real user.
+
+**Equivalent mutants recorded during the stage** (two independent guards enforce the same rule, so removing one changes nothing observable; the behavior is covered by the tests): status_only items in `openIssueCount` (issues are never loaded for them), the route-level superadmin check on approve (the service checks too), and the route-level empty-file check (the service checks too).
+
+**Verification**
+- Full suite from a freshly dropped and recreated test database: see the count in `docs/PROJECT_MEMORY.md` (324), confirmed by `npm run memory:check -- --full`, which runs the whole suite and compares.
+- `tsc --noEmit` clean. No em dashes in any file. `npm audit`: the same 4 dev-only drizzle-kit findings as before, nothing new.
+
+**UI-1 status:** complete. The eight items are built, each mutation-checked, and verified against the real server. UI-2 (the web app) is next and has not been started.
