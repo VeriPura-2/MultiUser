@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "./client";
-import type { ActionQueueResponse, Checklist, ConsignmentDetail, ConsignmentSummary, DirectoryOrg, DevUser, IssueDetail, Me, PartyWorkloadResponse } from "./types";
+import type { ActionQueueResponse, AdminOrganizationDetail, AdminOrganizationSummary, Checklist, ConsignmentDetail, ConsignmentSummary, DirectoryOrg, DevUser, IssueDetail, Me, PartyWorkloadResponse } from "./types";
 
 /** Query keys in one place, so a mutation can invalidate exactly what it changed. */
 export const keys = {
@@ -13,6 +13,8 @@ export const keys = {
   checklist: (id: string) => ["checklist", id] as const,
   issue: (id: string) => ["issue", id] as const,
   exporters: ["exporters"] as const,
+  adminOrgs: (status: string) => ["admin-orgs", status] as const,
+  adminOrg: (id: string) => ["admin-org", id] as const,
 };
 
 /** Who the app is acting as. Every screen keys off this, so it is fetched once and cached. */
@@ -112,6 +114,42 @@ export function useSubmitConsignment() {
     // A 502 means the purchase order was saved even though the checklist service was unreachable.
     onError: (error) => {
       if (error instanceof ApiError && error.status === 502) staleLists();
+    },
+  });
+}
+
+/** Organizations with a given status, oldest first (the approval queue is first come, first served). Superadmin only. */
+export function useAdminOrgs(status: string) {
+  return useQuery({
+    queryKey: keys.adminOrgs(status),
+    queryFn: () =>
+      api.get<{ organizations: AdminOrganizationSummary[] }>(`/admin/organizations?status=${encodeURIComponent(status)}`).then((r) => r.organizations),
+  });
+}
+
+/** One organization with the standard roles and the permissions they would receive. */
+export function useAdminOrg(id: string | null) {
+  return useQuery({
+    queryKey: keys.adminOrg(id ?? ""),
+    queryFn: () => api.get<AdminOrganizationDetail>(`/admin/organizations/${encodeURIComponent(id!)}`),
+    enabled: id !== null,
+  });
+}
+
+export type OrgDecision = "approve" | "reject";
+
+/**
+ * Approves or rejects an organization. The answer is the organization as it now stands. It leaves the
+ * pending list, and an approved exporter becomes choosable on the purchase order form, so both are marked stale.
+ */
+export function useDecideOrganization(id: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (decision: OrgDecision) => api.post<AdminOrganizationDetail>(`/admin/organizations/${encodeURIComponent(id)}/${decision}`),
+    onSuccess: (updated) => {
+      client.setQueryData(keys.adminOrg(id), updated);
+      void client.invalidateQueries({ queryKey: ["admin-orgs"] });
+      void client.invalidateQueries({ queryKey: keys.exporters });
     },
   });
 }

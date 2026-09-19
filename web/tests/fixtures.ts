@@ -1,4 +1,4 @@
-import type { ActionQueueItem, ConsignmentDetail, ConsignmentSummary, DevUser, FullChecklistItem, IssueDetail, Me, PartyWorkloadRow, StatusOnlyChecklistItem } from "../src/api/types";
+import type { ActionQueueItem, AdminOrganizationDetail, AdminOrganizationSummary, ConsignmentDetail, ConsignmentSummary, DevUser, FullChecklistItem, IssueDetail, Me, PartyWorkloadRow, StatusOnlyChecklistItem } from "../src/api/types";
 import { mockApi, respond } from "./mockApi";
 
 /**
@@ -220,6 +220,62 @@ export function intakeApi(user: Me, orgs: Array<{ id: string; name: string }> = 
   return mockApi({
     "GET /me": user,
     "GET /organizations/exporters": { organizations: orgs },
+    ...extra,
+  });
+}
+
+// Superadmin approval data ------------------------------------------------------------------
+
+export function pendingOrg(overrides: Partial<AdminOrganizationSummary> = {}): AdminOrganizationSummary {
+  return {
+    id: "org-pending-1",
+    name: "Sample Applicant One",
+    orgType: "exporter",
+    status: "pending_approval",
+    createdAt: "2026-09-16T09:30:00.000Z",
+    applicant: { name: "Pat Applicant", email: "pat@applicant-one.example.test" },
+    ...overrides,
+  };
+}
+
+export function orgDetail(overrides: Partial<AdminOrganizationDetail> = {}): AdminOrganizationDetail {
+  const rule = (documentTypeId: string, documentTypeName: string, over: Record<string, unknown> = {}) => ({
+    documentTypeId,
+    documentTypeName,
+    viewLevel: "full" as const,
+    canEdit: true,
+    canDownload: true,
+    canApprove: false,
+    configured: true,
+    ...over,
+  });
+  return {
+    ...pendingOrg(),
+    roles: [
+      { name: "Sample Admin Role", isOrgAdmin: true, permissions: [rule("d1", "Sample Doc A"), rule("d2", "Sample Doc B", { canApprove: true })] },
+      { name: "Sample Reader Role", isOrgAdmin: false, permissions: [rule("d1", "Sample Doc A", { viewLevel: "status_only", canEdit: false, canDownload: false }), rule("d2", "Sample Doc B", { viewLevel: null, configured: false, canEdit: false, canDownload: false })] },
+    ],
+    ...overrides,
+  };
+}
+
+/**
+ * Mocks the approval screen's data, as `user`. The pending list is a function so an approval can change what the next read returns.
+ */
+export function adminApi(
+  user: Me,
+  data: { pending?: AdminOrganizationSummary[] | (() => AdminOrganizationSummary[]); detail?: (id: string) => AdminOrganizationDetail } = {},
+  extra: Record<string, unknown> = {},
+) {
+  localStorage.setItem("vp-dev-user", user.userId);
+  const pending = data.pending ?? [pendingOrg()];
+  // By default the detail is the queue entry's own organization, so names and types agree between the two.
+  const known = typeof pending === "function" ? pending() : pending;
+  const detailOf = data.detail ?? ((id: string) => orgDetail({ ...(known.find((o) => o.id === id) ?? {}), id }));
+  return mockApi({
+    "GET /me": user,
+    "GET /admin/organizations": () => ({ organizations: typeof pending === "function" ? pending() : pending }),
+    "GET /admin/organizations/:id": (request: { params: { id: string } }) => detailOf(request.params.id),
     ...extra,
   });
 }

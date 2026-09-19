@@ -1,0 +1,50 @@
+/* Superadmin approval, from docs/ui-mockups/v2-revised/SuperadminOrgApproval.html. */
+
+.ad-split{display:grid; grid-template-columns:1fr 560px; gap:18px; align-items:start;}
+.ad-table-card{border-radius:4px; overflow-x:auto;}
+.ad-detail{border-radius:4px; padding:22px 24px;}
+
+.admin-body table{width:100%; border-collapse:collapse; font-family:var(--font-ui); font-size:15px;}
+.admin-body th{text-align:left; font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--charcoal-soft); padding:12px 14px; border-bottom:1px solid var(--line); background:var(--recess);}
+.admin-body td{padding:12px 14px; border-bottom:1px solid var(--line); vertical-align:middle;}
+.admin-body tbody tr:last-child td{border-bottom:0;}
+.admin-body tr.selected td{background:var(--gold-bg);}
+.admin-body td.strong{font-weight:700;}
+.ad-review{background:none; border:0; padding:4px 2px; font-family:var(--font-ui); font-size:14px; color:var(--charcoal-soft); text-decoration:underline; text-underline-offset:3px;}
+.ad-review.on{color:var(--gold-deep); font-weight:700; text-decoration:none;}
+
+.ad-detail-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:10px;}
+.ad-name{font-weight:700; font-size:18px; overflow-wrap:anywhere;}
+.ad-soft{font-family:var(--font-ui); font-size:14px; color:var(--charcoal-soft); margin-top:2px;}
+.ad-facts{display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; font-family:var(--font-ui); font-size:14px; margin:0 0 18px;}
+.ad-facts dt{color:var(--charcoal-soft);}
+.ad-facts dd{margin:0; font-weight:700; overflow-wrap:anywhere;}
+.ad-cap{font-family:var(--font-ui); font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--charcoal-soft); margin-bottom:6px;}
+.ad-rules-note{margin:0 0 10px;}
+
+/* Permission table: scrolls inside the panel when there are many documents. */
+.ad-perm-scroll{max-height:360px; overflow:auto; border:1px solid var(--line); border-radius:4px; margin-bottom:18px;}
+.admin-body table.ad-perm{font-size:14px;}
+.admin-body table.ad-perm th{padding:8px 10px; position:sticky; top:0; z-index:1;}
+.admin-body table.ad-perm td{padding:8px 10px;}
+.admin-body table.ad-perm tr.role-row th{position:static; background:var(--recess); text-transform:none; letter-spacing:0; font-size:14px; color:var(--charcoal); border-top:1px solid var(--line);}
+.cc{text-align:center;}
+.admin-body table.ad-perm th.cc{text-align:center;}
+.ad-perm td.yes{color:var(--green); font-weight:700;}
+.ad-perm td.no{color:var(--red); font-weight:700;}
+.ad-perm td.na{color:var(--charcoal-soft);}
+.ad-perm td.nc{color:var(--charcoal-soft); font-style:italic;}
+
+.ad-buttons{display:flex; gap:10px; flex-wrap:wrap;}
+.ad-approve,.ad-reject{font-family:var(--font-ui); font-size:15px; font-weight:700; border-radius:5px; padding:10px 18px; border:1px solid var(--line);}
+.ad-approve{background:var(--solid-green); border-color:var(--solid-green); color:var(--on-solid);}
+.ad-reject{background:var(--red-bg); border-color:var(--red-line); color:var(--red);}
+.ad-confirm{font-family:var(--font-ui); font-size:16px; margin:0 0 6px;}
+
+.ad-notice{font-family:var(--font-ui); font-size:15px; font-weight:700; padding:12px 16px; border-radius:6px; margin-bottom:18px;}
+.ad-notice.approve{background:var(--green-bg); color:var(--green); border:1px solid var(--green-line);}
+.ad-notice.reject{background:var(--red-bg); color:var(--red); border:1px solid var(--red-line);}
+
+@media (max-width:1100px){
+  .ad-split{grid-template-columns:1fr;}
+}

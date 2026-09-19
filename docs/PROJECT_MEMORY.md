@@ -10,8 +10,8 @@ Keep this file short and current. It must stay under about 250 lines because it 
 Update it when the state changes. Do not turn it into a second build log.
 
 Last updated: 2026-09-19
-Tests passing: 547
-Stages complete: 3 of 3 backend prompts, and UI-1 (API surface for the UI). UI-2 (the web app) in progress, step 5 of 7 done. UI-3 (vessel tracking) and Prompt 4 (Stripe) not started.
+Tests passing: 574
+Stages complete: 3 of 3 backend prompts, and UI-1 (API surface for the UI). UI-2 (the web app) in progress, step 6 of 7 done. UI-3 (vessel tracking) and Prompt 4 (Stripe) not started.
 
 ## Standing rules (Thomas's, apply to every session)
 
@@ -105,7 +105,7 @@ All dates 2026-09-19. Hashes are the pushed ones (history was corrected twice be
 | Project memory, step 1 | `CLAUDE.md`, this file restructured, `BUILD_PROMPTS.md` (the original spec) | `0ec6e2e` |
 | Project memory, step 2 | The enforcement: `scripts/memory-check.mjs`, the git pre-commit hook, the Claude Code Stop hook, 36 tests of the enforcement itself (206 total) | `74bbb58` |
 | Project memory, step 3 | `/pickup` and `/wrapup` commands, `resume.ps1`, the `veripura` PowerShell command, README section, thin auto-memory pointers | `c5aae93` |
-| UI-2: the web app (in progress) | Step 1: app shell, tokens, theme, fonts, shared components, API client, dev user switcher, auth gate (66 web tests). Step 2: dashboard (stats, attention band, action queue, consignment list, Leaflet map on sample positions), plus `originCountry`/`destinationCountry` on `GET /consignments` (458 tests total). Step 3: roadmap at `/consignments/:id` (grouped by API category, buttons from the permission flags), plus `issueId` on a checklist item's open issue (487 tests total). Step 4: issue screen with request-correction and resolve dialogs (520 tests total). Step 5: intake (purchase order upload, exporter and country selects, handles the saved-but-502 case) and the dashboard's New Consignment link (547 tests total) | see `git log` |
+| UI-2: the web app (in progress) | Step 1: app shell, tokens, theme, fonts, shared components, API client, dev user switcher, auth gate (66 web tests). Step 2: dashboard (stats, attention band, action queue, consignment list, Leaflet map on sample positions), plus `originCountry`/`destinationCountry` on `GET /consignments` (458 tests total). Step 3: roadmap at `/consignments/:id` (grouped by API category, buttons from the permission flags), plus `issueId` on a checklist item's open issue (487 tests total). Step 4: issue screen with request-correction and resolve dialogs (520 tests total). Step 5: intake (purchase order upload, exporter and country selects, handles the saved-but-502 case) and the dashboard's New Consignment link (547 tests total). Step 6: superadmin org approval (queue, detail, permission table from the API, confirm dialogs) (574 tests total) | see `git log` |
 | UI-1: API surface for the UI | All eight items: `AUTH_MODE=dev` and `GET /me`, `npm run seed:dev`, consignment detail, action queue, issue detail and actions, org directory and superadmin approval, multipart `POST /consignments`, and an end-to-end journey test (324 tests total). Verified against the real server on port 3100. | see `git log` |
 
 Key decisions (full reasoning in the build log): 404 not 403 for non-parties; a bulk permission
@@ -132,7 +132,7 @@ paths share `applyChecklist`; a failed core send keeps the PO and is retryable.
 
 ## Next work
 
-1. **UI-2** (the React web app), from `docs/veripura-cli-ui-prompts.md`, steps 6 to 7 remaining ( superadmin approval, final tests and the visual comparison against the PNG previews). Step 6 is superadmin org approval; step 7 is the final test pass and the visual comparison against the PNG previews, in both themes, which no screen has had yet in a real browser except the dashboard. Then **UI-3** (vessel tracking, from the same file). The mockups are in `docs/ui-mockups/v2-revised/` (untracked, Thomas's design inputs).
+1. **UI-2** (the React web app), from `docs/veripura-cli-ui-prompts.md`, step 7 remaining: the final test pass and the visual comparison of every screen against the PNG previews, in both themes, which no screen except the dashboard has had yet in a real browser. Then **UI-3** (vessel tracking, from the same file). The mockups are in `docs/ui-mockups/v2-revised/` (untracked, Thomas's design inputs).
 2. Prompt 4 (Stripe billing): create a customer on org approval, a checkout and subscription
    flow, a webhook keeping `billing_status` in sync, and deliberately no access enforcement yet.
    Columns already exist. Description in `docs/BUILD_PROMPTS.md`, notes section.

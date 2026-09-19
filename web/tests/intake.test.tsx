@@ -210,6 +210,8 @@ describe("intake: submitting", () => {
     });
     expect((form.get("file") as File).name).toBe("po.pdf");
     expect(posted[0]!.headers.get("content-type")).toBeNull(); // the browser sets the multipart boundary itself
+    // The heading can appear from the cache before the roadmap's own read has been issued, so wait for it.
+    await waitFor(() => expect(api.callsTo("GET /consignments/:id")).not.toHaveLength(0));
     expect(api.callsTo("GET /consignments/:id")[0]!.params.id).toBe("new-consignment-id");
   });
 
