@@ -159,3 +159,26 @@ Stage 1 code (`src/db`, `src/permissions`, `src/audit`, `src/services/organizati
 **Dependency note:** `npm audit` reports 4 moderate findings, all in `drizzle-kit`'s transitive `esbuild` (a dev-server request issue). It is a dev tool that never runs a dev server here, and the suggested fix downgrades drizzle-kit to 0.18.1. Left as is.
 
 **Tests:** stage 1's 56 still pass against the new schema (see run at commit time). New tests arrive in step 6.
+
+---
+
+## 2026-09-19, Stage 2, Step 3 (built before Step 2): Outbound contract to VeriPura core
+
+**Built**
+- `src/core/types.ts`: `CoreConsignmentPayload` (`consignmentId, externalCoreId, commodity, hsCode, originCountry, destinationCountry, importerOrgId, exporterOrgId, poFileUrl`), `CoreChecklistPayload`, and the `VeriPuraCoreClient` interface (`submitConsignment`).
+- `src/core/client.ts`: `StubVeriPuraCoreClient` (simulated delay, hardcoded checklist of Commercial Invoice, Packing List, Bill of Lading, Export Health Certificate; never reports an externalCoreId) and `HttpVeriPuraCoreClient` (real `fetch` POST, 10 s timeout, any 2xx is "accepted"). Selected by `VERIPURA_CORE_MODE=stub|live`, default `stub`. `live` fails fast at first use if `VERIPURA_CORE_WEBHOOK_URL` or `VERIPURA_CORE_WEBHOOK_SECRET` is missing. `setCoreClient()` is the test override.
+- `src/core/signature.ts`: HMAC-SHA256 sign and constant-time verify, shared by the outbound client and the inbound endpoint (step 4).
+- `src/core/send.ts`: `sendToVeriPuraCore(consignment, actingUser?)`.
+- Env vars added to `.env.example` (and the local `.env`): `VERIPURA_CORE_MODE`, `VERIPURA_CORE_STUB_DELAY_MS`, `VERIPURA_CORE_WEBHOOK_URL`, `VERIPURA_CORE_WEBHOOK_SECRET`. The secret in the example file is an obvious placeholder for the local sandbox.
+
+**Decisions not fully specified in the prompt**
+- The stub returns the checklist in its response, and the submit flow applies it through the same function the inbound webhook uses. That gives the end-to-end behavior the prompt wants (checklist created, status checklist_received) with one code path for applying a checklist, while the live client stays asynchronous (core calls back).
+- `sendToVeriPuraCore` takes only the consignment, per the prompt, and looks up the PO file location itself (latest `purchase_orders` row).
+- The network call is made outside any DB transaction. Afterward the outbound `webhook_events` row, the status change, and the audit row commit together.
+- Status moves po_submitted -> checklist_pending only from `po_submitted`. A resend from `checklist_pending` leaves it alone; sending from any other status is a `ValidationError`.
+- Failure path (not in the prompt): a failed call writes an outbound `webhook_events` row with status `failed`, audits `consignment.core_send_failed` (error text in metadata), leaves the consignment in `po_submitted`, and throws `VeriPuraCoreError` carrying the consignment id. The PO is not lost. There is no retry mechanism yet; a caller can call `sendToVeriPuraCore` again.
+- Extra audit action `consignment.sent_to_core` because the function mutates status and inserts a row, and the stage 1 rule is that every mutation is audited.
+- Outbound signing: the live client signs its body with `X-VeriPura-Signature` (same HMAC scheme as the callbacks it expects). The prompt only specifies signing for the inbound direction, so this is our proposal and is **to be confirmed with Onno's team** along with the rest of the contract.
+- A bug caught while writing this step: an `eq(a) && eq(b)` in the status update's `WHERE` would have silently dropped the id filter (JavaScript `&&` on two SQL objects returns the second), updating every `po_submitted` consignment. Fixed to `and(...)`. TypeScript cannot catch that; step 6 adds a test that sending one consignment leaves another `po_submitted` consignment untouched.
+
+**Tests:** none yet for this step (step 6). `tsc --noEmit` clean.
