@@ -310,3 +310,28 @@ Stage 1 code (`src/db`, `src/permissions`, `src/audit`, `src/services/organizati
 ## 2026-09-19, Repository: commit identity
 
 The first push to `origin` was declined by GitHub (GH007, private email protection), because commits carried the global git identity's personal email. Before anything was published, the 14 local commits were re-authored to the account's GitHub noreply address, and this repository's *local* git config now sets that address (the global config is untouched). File contents were verified identical before and after by comparing tree hashes. `main` was then pushed to `origin` for the first time. Anyone committing from another machine needs the same local setting, or a push will be declined the same way.
+
+---
+
+# Stage 3: role-scoped checklist, issue retrieval, and party workload
+
+Stage 2 code was read and reused. Build order follows the prompt: 1 (checklist endpoint), 2 (consignment list), 3 (party workload), 4 (tests). Stage 1 and 2 suites (133 tests) were re-run after the shared refactors below and still pass.
+
+## 2026-09-19, Stage 3, Step 1: `GET /consignments/:consignmentId/checklist`
+
+**Built**
+- `src/services/consignmentViews.ts`: `getConsignmentChecklist(consignmentId, actingUser)` plus the building blocks the next two steps reuse (`loadResolvedItems`, `loadUnresolvedIssues`, `isPartyTo`, visibility predicates).
+- `src/http/views.ts`: the route. `src/http/actor.ts`: acting-user resolution moved out of `purchaseOrders.ts` so every route shares one implementation and one `ALLOW_DEV_ACTOR_HEADER` switch (401 without an acting user, as before).
+- `src/permissions/engine.ts`: new `createPermissionResolver(user, db, documentTypeIds?)`, which loads the user's org type, role names, and matching rules once and returns a function that resolves any document type from memory. `resolveDocumentPermissions` is now a thin wrapper over it.
+
+**Decisions not fully specified in the prompt**
+- **Bulk resolver instead of calling `resolveDocumentPermissions` per item.** The prompt says to resolve each item via `resolveDocumentPermissions`. Doing that literally costs three queries per item, and the list and workload endpoints resolve many items across many consignments. The resolver factory does the identical lookup and the identical merge (`mergePermissionRules`) in a fixed three queries, and `resolveDocumentPermissions` itself now calls it, so there is one implementation, not two that could drift. Step 4 adds a test that the two agree across a matrix of rule combinations. Stage 1's 22 permission tests pass unchanged.
+- **404 versus 403 (the prompt left it to me).** A user who is not superadmin and not on the importer or exporter org gets `404`, the same as for a consignment that does not exist. This model has no "related but wrong org" relationship beyond being a party, so a 403 would only confirm to a stranger that an id is real. A user who is not active gets `403` before any consignment is looked up; that reveals nothing about any consignment. A malformed id is also `404`.
+- **Response shape follows the prompt** (`{ consignmentId, consignmentStatus, checklist }`; status_only and full item shapes as specified), with one addition: every item carries `checklistItemId`. Without an id a caller cannot act on an item. It is an opaque uuid, not content, so it does not weaken status_only.
+- **`openIssue` is singular but an item can hold several unresolved issues (stage 2 allows it).** The checklist shows the longest-standing one (earliest created). The list and workload counts count items, not issues, so this ambiguity does not affect any number.
+- **A source document you cannot see is not named.** The prompt says to resolve the source checklist item's document type name for display. If that source item is hidden from the viewer, naming it would reveal that a document they cannot see exists, so `sourceDocumentTypeName` is omitted in that case (as it is when there is no source). status_only sources are named, since a status_only viewer already sees that item's name in the checklist.
+- **Known limit, not fixable here:** an issue's `expectedValue` and `foundValue` are free text and may be copied from a document the viewer cannot see. Nothing can detect that. It is a reason to keep issue authorship to trusted roles (see the stage 2 note about tightening).
+- Items are ordered by creation time, then document type name, then `requiredBy`, so the order is stable.
+- Reads run in one repeatable-read, read-only transaction, so a view never mixes two moments.
+
+**Tests:** none yet for this stage (step 4). Stage 1 and 2 suites: 133 of 133 passing after the refactors. `tsc --noEmit` clean.

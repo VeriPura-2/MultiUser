@@ -81,22 +81,27 @@ export function mergePermissionRules(rules: readonly RuleGrant[]): DocumentPermi
   return { viewLevel, canEdit, canDownload, canApprove };
 }
 
+/** Resolves the permissions for any document type, for one user, from data loaded up front. */
+export type PermissionResolver = (documentTypeId: string) => DocumentPermissions;
+
 /**
- * Resolves what `user` may do with documents of `documentType`.
+ * Loads what is needed to resolve `user`'s permissions (organization type, role names, and the
+ * matching rules) once, and returns a function that resolves any document type from memory.
+ * Use it wherever many document types are resolved for one user, so the cost is a fixed three
+ * queries instead of three per document. resolveDocumentPermissions is built on this, so the
+ * two cannot drift apart.
  *
- * Superadmin returns full/all-true immediately. Otherwise the user's organization type and
- * assigned role names are looked up and matched against document_permission_rules. Only roles
- * belonging to the user's own organization count, even if a stray assignment pointed elsewhere.
- * A user with no roles matches no rules and so gets the opt-in defaults.
- *
- * Async because it reads the database. `db` may be a transaction handle.
+ * Superadmin resolves to full/all-true without touching the database. Only roles belonging to
+ * the user's own organization count, even if a stray assignment pointed elsewhere. A user with
+ * no roles matches no rules and so gets the opt-in defaults. Pass `documentTypeIds` to load
+ * rules for just those types when only a few are needed.
  */
-export async function resolveDocumentPermissions(
+export async function createPermissionResolver(
   user: UserRef,
-  documentType: Pick<DocumentType, "id">,
   db: DbExecutor = getDb(),
-): Promise<DocumentPermissions> {
-  if (isSuperadmin(user)) return { ...SUPERADMIN_PERMISSIONS };
+  documentTypeIds?: readonly string[],
+): Promise<PermissionResolver> {
+  if (isSuperadmin(user)) return () => ({ ...SUPERADMIN_PERMISSIONS });
 
   const orgId = user.organization_id;
   if (typeof orgId !== "string") {
@@ -116,20 +121,41 @@ export async function resolveDocumentPermissions(
     .innerJoin(org_roles, eq(org_roles.id, user_role_assignments.org_role_id))
     .where(and(eq(user_role_assignments.user_id, user.id), eq(org_roles.organization_id, orgId)));
   const roleNames = [...new Set(roleRows.map((r) => r.name))];
-  if (roleNames.length === 0) return { ...DEFAULT_PERMISSIONS };
+  if (roleNames.length === 0) return () => ({ ...DEFAULT_PERMISSIONS });
 
-  const rules = await db
-    .select()
-    .from(document_permission_rules)
-    .where(
-      and(
-        eq(document_permission_rules.document_type_id, documentType.id),
-        eq(document_permission_rules.org_type, org.org_type),
-        inArray(document_permission_rules.org_role_name, roleNames),
-      ),
-    );
+  const rulesByType = new Map<string, DocumentPermissionRule[]>();
+  if (!documentTypeIds || documentTypeIds.length > 0) {
+    const conditions = [
+      eq(document_permission_rules.org_type, org.org_type),
+      inArray(document_permission_rules.org_role_name, roleNames),
+    ];
+    if (documentTypeIds) conditions.push(inArray(document_permission_rules.document_type_id, [...documentTypeIds]));
+    for (const rule of await db.select().from(document_permission_rules).where(and(...conditions))) {
+      const list = rulesByType.get(rule.document_type_id) ?? [];
+      list.push(rule);
+      rulesByType.set(rule.document_type_id, list);
+    }
+  }
 
-  return mergePermissionRules(rules);
+  return (documentTypeId) => mergePermissionRules(rulesByType.get(documentTypeId) ?? []);
+}
+
+/**
+ * Resolves what `user` may do with documents of `documentType`.
+ *
+ * Superadmin returns full/all-true immediately. Otherwise the user's organization type and
+ * assigned role names are looked up and matched against document_permission_rules, and the
+ * matches are merged (most permissive wins, then the full-view constraint is re-applied).
+ *
+ * Async because it reads the database. `db` may be a transaction handle.
+ */
+export async function resolveDocumentPermissions(
+  user: UserRef,
+  documentType: Pick<DocumentType, "id">,
+  db: DbExecutor = getDb(),
+): Promise<DocumentPermissions> {
+  const resolve = await createPermissionResolver(user, db, [documentType.id]);
+  return resolve(documentType.id);
 }
 
 /**

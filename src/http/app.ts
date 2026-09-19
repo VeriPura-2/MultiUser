@@ -1,12 +1,13 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { NotFoundError, PermissionDeniedError, ValidationError, VeriPuraCoreError } from "../errors.js";
 import { purchaseOrderRoutes, type PurchaseOrderRouteOptions } from "./purchaseOrders.js";
+import { viewRoutes } from "./views.js";
 import { webhookRoutes, type WebhookRouteOptions } from "./webhooks.js";
 
 export interface AppOptions {
   logger?: boolean;
   webhook?: WebhookRouteOptions;
-  /** Defaults to ALLOW_DEV_ACTOR_HEADER=true in the environment, otherwise off. */
+  /** Actor resolution for every route that needs one. Defaults to ALLOW_DEV_ACTOR_HEADER=true, otherwise off. */
   purchaseOrders?: PurchaseOrderRouteOptions;
 }
 
@@ -32,10 +33,9 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
 
   app.get("/health", async () => ({ ok: true }));
   app.register(webhookRoutes, options.webhook ?? {});
-  app.register(purchaseOrderRoutes, {
-    allowDevActorHeader: process.env.ALLOW_DEV_ACTOR_HEADER === "true",
-    ...options.purchaseOrders,
-  });
+  const actorOptions = { allowDevActorHeader: process.env.ALLOW_DEV_ACTOR_HEADER === "true", ...options.purchaseOrders };
+  app.register(purchaseOrderRoutes, actorOptions);
+  app.register(viewRoutes, actorOptions);
 
   return app;
 }

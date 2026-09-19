@@ -1,34 +1,13 @@
-import { eq } from "drizzle-orm";
-import type { FastifyPluginAsync, FastifyRequest } from "fastify";
-import { getDb } from "../db/client.js";
-import { users } from "../db/schema.js";
+import type { FastifyPluginAsync } from "fastify";
 import { ValidationError } from "../errors.js";
 import { submitPurchaseOrder } from "../services/consignments.js";
-import type { UserRef } from "../types.js";
+import { resolveActingUser, type ActorOptions } from "./actor.js";
 
-export interface PurchaseOrderRouteOptions {
-  /**
-   * Sandbox stand-in for real authentication: trust an `X-Acting-User-Id` header and load that
-   * user. Off unless explicitly enabled. Sign-in is a separate prompt; until it lands, real
-   * middleware is expected to resolve the acting user upstream of this layer.
-   */
-  allowDevActorHeader?: boolean;
-}
+export type PurchaseOrderRouteOptions = ActorOptions;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 /** 15 MB of file becomes about 20 MB of base64 inside the JSON body. */
 const BODY_LIMIT = 22 * 1024 * 1024;
-
-/** Resolves the acting user for a request, or null if the request is not authenticated. */
-async function resolveActingUser(request: FastifyRequest, allowDev: boolean): Promise<UserRef | null> {
-  if (!allowDev) return null;
-  const header = request.headers["x-acting-user-id"];
-  const id = Array.isArray(header) ? header[0] : header;
-  if (!id || !UUID.test(id)) return null;
-  const [row] = await getDb().select({ id: users.id, organization_id: users.organization_id }).from(users).where(eq(users.id, id));
-  return row ?? null;
-}
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
 /**
  * POST /purchase-orders. Thin wrapper over submitPurchaseOrder. The PO file travels as
