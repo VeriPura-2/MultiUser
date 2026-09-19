@@ -8,6 +8,13 @@
       "when": 1789804581905,
       "tag": "0000_init_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789805534309,
+      "tag": "0001_stage2_consignments_checklist_issues",
+      "breakpoints": true
     }
   ]
 }

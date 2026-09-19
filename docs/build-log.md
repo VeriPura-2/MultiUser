@@ -135,3 +135,27 @@ Append-only. One dated entry per numbered build step. Never rewrite earlier entr
 ## 2026-09-19, Stage 1, correction to the Step 5 entry
 
 The Step 5 entry gave per-file test counts of 22 / 29 / 5. The verified counts are **permissions 22, lifecycle 25, audit 9** (audit counts each parameterized malformed-action case). The total of 56 passing was correct and is unchanged.
+
+---
+
+# Stage 2: PO intake, consignments, issues, VeriPura core webhook contract
+
+Stage 1 code (`src/db`, `src/permissions`, `src/audit`, `src/services/organizations.ts`, `src/services/users.ts`) was read and reused as is. Build order this stage: 1 (schema), 3 (outbound contract), 4 (inbound contract), 2 (PO submission, which calls both contracts), 5 (issues), 6 (tests plus the HTTP layer's tests). Numbering in the prompt is unchanged; only the order differs, and the commit history shows it.
+
+## 2026-09-19, Stage 2, Step 1: Schema additions
+
+**Built**
+- Migration `drizzle/0001_stage2_consignments_checklist_issues.sql`: `consignments`, `purchase_orders`, `document_checklist_items`, `issues`, `webhook_events`, plus enums for consignment status, checklist `required_by`, checklist item status, issue status, webhook direction and status.
+- `consignments.external_core_id` is nullable text, present from now on for the eventual real core link.
+
+**Decisions not fully specified in the prompt**
+- `document_checklist_items` is unique on (consignment_id, document_type_id, required_by). This unique index is what makes replaying a checklist callback idempotent (`ON CONFLICT DO NOTHING`), even under concurrent replays. `required_by` is part of the key so a document that genuinely must come from two parties is representable.
+- `document_types.name` uniqueness changed from case-sensitive to case-insensitive (`lower(name)`). Core will send names as free text; "bill of lading" and "Bill of Lading" must be one type. Existing rows were unaffected (dev database re-checked).
+- `consignments` has a CHECK that importer and exporter are different orgs.
+- `issues` has a CHECK that `resolved_at` is set if and only if status is `resolved`, and a CHECK that an issue's source item differs from its own item. `issues.consignment_id` is denormalized from the checklist item so party-scoped queries need no join.
+- `webhook_events.consignment_id` is nullable, used only for an inbound call from core that could not be tied to a known consignment (signature valid, consignment unknown).
+- `hs_code` is nullable and `submitPurchaseOrder` will accept an optional `hsCode`, because the outbound payload carries `hsCode`.
+
+**Dependency note:** `npm audit` reports 4 moderate findings, all in `drizzle-kit`'s transitive `esbuild` (a dev-server request issue). It is a dev tool that never runs a dev server here, and the suggested fix downgrades drizzle-kit to 0.18.1. Left as is.
+
+**Tests:** stage 1's 56 still pass against the new schema (see run at commit time). New tests arrive in step 6.

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   check,
   index,
@@ -54,6 +55,38 @@ export const userStatusEnum = pgEnum("user_status", USER_STATUSES);
 export const VIEW_LEVELS = ["full", "status_only", "hidden"] as const;
 export type ViewLevel = (typeof VIEW_LEVELS)[number];
 export const viewLevelEnum = pgEnum("view_level", VIEW_LEVELS);
+
+export const CONSIGNMENT_STATUSES = [
+  "po_submitted",
+  "checklist_pending",
+  "checklist_received",
+  "active",
+  "completed",
+  "cancelled",
+] as const;
+export type ConsignmentStatus = (typeof CONSIGNMENT_STATUSES)[number];
+export const consignmentStatusEnum = pgEnum("consignment_status", CONSIGNMENT_STATUSES);
+
+/** Which org type is responsible for supplying a required document. */
+export const CHECKLIST_REQUIRED_BY = ["importer", "exporter", "logistics"] as const;
+export type ChecklistRequiredBy = (typeof CHECKLIST_REQUIRED_BY)[number];
+export const checklistRequiredByEnum = pgEnum("checklist_required_by", CHECKLIST_REQUIRED_BY);
+
+export const CHECKLIST_ITEM_STATUSES = ["awaiting_upload", "pending", "verified", "flagged"] as const;
+export type ChecklistItemStatus = (typeof CHECKLIST_ITEM_STATUSES)[number];
+export const checklistItemStatusEnum = pgEnum("checklist_item_status", CHECKLIST_ITEM_STATUSES);
+
+export const ISSUE_STATUSES = ["open", "correction_requested", "resolved"] as const;
+export type IssueStatus = (typeof ISSUE_STATUSES)[number];
+export const issueStatusEnum = pgEnum("issue_status", ISSUE_STATUSES);
+
+export const WEBHOOK_DIRECTIONS = ["outbound", "inbound"] as const;
+export type WebhookDirection = (typeof WEBHOOK_DIRECTIONS)[number];
+export const webhookDirectionEnum = pgEnum("webhook_direction", WEBHOOK_DIRECTIONS);
+
+export const WEBHOOK_STATUSES = ["sent", "received", "failed"] as const;
+export type WebhookStatus = (typeof WEBHOOK_STATUSES)[number];
+export const webhookStatusEnum = pgEnum("webhook_status", WEBHOOK_STATUSES);
 
 // ---------------------------------------------------------------------------
 // Tables
@@ -125,7 +158,9 @@ export const document_types = pgTable(
     category: text("category"),
     description: text("description"),
   },
-  (t) => [uniqueIndex("document_types_name_uniq").on(t.name)],
+  // Case-insensitive: core may say "bill of lading" where a superadmin created "Bill of Lading",
+  // and those must resolve to one document type, not two.
+  (t) => [uniqueIndex("document_types_name_uniq").on(sql`lower(${t.name})`)],
 );
 
 /**
@@ -179,6 +214,140 @@ export const audit_log = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Stage 2: consignments, purchase orders, checklist, issues, webhook log
+// ---------------------------------------------------------------------------
+
+export const consignments = pgTable(
+  "consignments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // VeriPura core's own identifier for this consignment. Null until a live integration
+    // reports one (first write wins); unused by the stub client.
+    external_core_id: text("external_core_id"),
+    importer_org_id: uuid("importer_org_id")
+      .notNull()
+      .references(() => organizations.id),
+    exporter_org_id: uuid("exporter_org_id")
+      .notNull()
+      .references(() => organizations.id),
+    status: consignmentStatusEnum("status").notNull().default("po_submitted"),
+    commodity: text("commodity").notNull(),
+    hs_code: text("hs_code"),
+    origin_country: text("origin_country").notNull(),
+    destination_country: text("destination_country").notNull(),
+    created_by_user_id: uuid("created_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("consignments_distinct_parties", sql`${t.importer_org_id} <> ${t.exporter_org_id}`),
+    index("consignments_importer_idx").on(t.importer_org_id),
+    index("consignments_exporter_idx").on(t.exporter_org_id),
+  ],
+);
+
+export const purchase_orders = pgTable(
+  "purchase_orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    consignment_id: uuid("consignment_id")
+      .notNull()
+      .references(() => consignments.id),
+    // Storage key or URL returned by the file storage abstraction.
+    file_url: text("file_url").notNull(),
+    uploaded_by_user_id: uuid("uploaded_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    uploaded_at: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("purchase_orders_consignment_idx").on(t.consignment_id)],
+);
+
+/**
+ * Populated from VeriPura core's checklist callback, never invented locally. The unique index
+ * is what makes replaying the same callback idempotent. `flagged` is a convenience mirror of
+ * "has an unresolved issue"; the issues table is the source of truth.
+ */
+export const document_checklist_items = pgTable(
+  "document_checklist_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    consignment_id: uuid("consignment_id")
+      .notNull()
+      .references(() => consignments.id),
+    document_type_id: uuid("document_type_id")
+      .notNull()
+      .references(() => document_types.id),
+    required_by: checklistRequiredByEnum("required_by").notNull(),
+    status: checklistItemStatusEnum("status").notNull().default("awaiting_upload"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("checklist_items_consignment_doctype_reqby_uniq").on(
+      t.consignment_id,
+      t.document_type_id,
+      t.required_by,
+    ),
+  ],
+);
+
+export const issues = pgTable(
+  "issues",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    document_checklist_item_id: uuid("document_checklist_item_id")
+      .notNull()
+      .references(() => document_checklist_items.id),
+    // Denormalized from the checklist item so party-scoped queries need no join.
+    consignment_id: uuid("consignment_id")
+      .notNull()
+      .references(() => consignments.id),
+    problem: text("problem").notNull(),
+    expected_value: text("expected_value"),
+    found_value: text("found_value"),
+    // The other document the discrepancy was found against, for example the Commercial
+    // Invoice behind a Certificate of Origin mismatch.
+    source_document_checklist_item_id: uuid("source_document_checklist_item_id").references(
+      (): AnyPgColumn => document_checklist_items.id,
+    ),
+    responsible_org_type: orgTypeEnum("responsible_org_type").notNull(),
+    status: issueStatusEnum("status").notNull().default("open"),
+    // null means system- or AI-raised.
+    created_by_user_id: uuid("created_by_user_id").references(() => users.id),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    resolved_at: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (t) => [
+    check("issues_resolved_at_matches_status", sql`(${t.status} = 'resolved') = (${t.resolved_at} IS NOT NULL)`),
+    check(
+      "issues_source_differs_from_item",
+      sql`${t.source_document_checklist_item_id} IS NULL OR ${t.source_document_checklist_item_id} <> ${t.document_checklist_item_id}`,
+    ),
+    index("issues_item_idx").on(t.document_checklist_item_id),
+    index("issues_consignment_status_idx").on(t.consignment_id, t.status),
+  ],
+);
+
+/**
+ * Raw payloads for every webhook call in and out, for replay and debugging. Separate from
+ * audit_log, which is the human-readable action trail. consignment_id is null only for an
+ * inbound call that could not be tied to a known consignment.
+ */
+export const webhook_events = pgTable(
+  "webhook_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    consignment_id: uuid("consignment_id").references(() => consignments.id),
+    direction: webhookDirectionEnum("direction").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    status: webhookStatusEnum("status").notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("webhook_events_consignment_idx").on(t.consignment_id)],
+);
+
+// ---------------------------------------------------------------------------
 // Row types
 // ---------------------------------------------------------------------------
 
@@ -188,3 +357,8 @@ export type OrgRole = typeof org_roles.$inferSelect;
 export type DocumentType = typeof document_types.$inferSelect;
 export type DocumentPermissionRule = typeof document_permission_rules.$inferSelect;
 export type AuditLogRow = typeof audit_log.$inferSelect;
+export type Consignment = typeof consignments.$inferSelect;
+export type PurchaseOrder = typeof purchase_orders.$inferSelect;
+export type DocumentChecklistItem = typeof document_checklist_items.$inferSelect;
+export type Issue = typeof issues.$inferSelect;
+export type WebhookEvent = typeof webhook_events.$inferSelect;
