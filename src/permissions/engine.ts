@@ -49,6 +49,12 @@ type RuleGrant = Pick<DocumentPermissionRule, "view_level" | "can_edit" | "can_d
  * rule grants it. Then the consistency constraint is re-applied to the merged result, so a
  * grant that only ever existed on a rule below full view cannot leak through the merge.
  * With no rules, returns DEFAULT_PERMISSIONS.
+ *
+ * Booleans are counted only from rules that are themselves full view. The database CHECK
+ * already forbids a status_only or hidden rule carrying a grant, so for stored data this is
+ * identical to "any rule grants it". It is kept as defense in depth: if that constraint were
+ * ever dropped or a row slipped past it, the bad grant still could not surface in a merge
+ * where another role resolves the view level to full.
  */
 export function mergePermissionRules(rules: readonly RuleGrant[]): DocumentPermissions {
   if (rules.length === 0) return { ...DEFAULT_PERMISSIONS };
@@ -60,9 +66,11 @@ export function mergePermissionRules(rules: readonly RuleGrant[]): DocumentPermi
 
   for (const rule of rules) {
     if (VIEW_RANK[rule.view_level] > VIEW_RANK[viewLevel]) viewLevel = rule.view_level;
-    canEdit ||= rule.can_edit;
-    canDownload ||= rule.can_download;
-    canApprove ||= rule.can_approve;
+    if (rule.view_level === "full") {
+      canEdit ||= rule.can_edit;
+      canDownload ||= rule.can_download;
+      canApprove ||= rule.can_approve;
+    }
   }
 
   if (viewLevel !== "full") {

@@ -95,3 +95,37 @@ Append-only. One dated entry per numbered build step. Never rewrite earlier entr
 - Superadmin is only ever created by the seed script. No service function creates a superadmin.
 
 **Tests:** none yet (step 5). `tsc --noEmit` clean; seed script run twice against the dev database to confirm idempotence.
+
+---
+
+## 2026-09-19, Stage 1, Step 5: Tests
+
+**Built**
+- `tests/permissions.test.ts` (22 tests), `tests/lifecycle.test.ts` (29), `tests/audit.test.ts` (5, counting the parameterized cases), `tests/helpers.ts` (factories that build orgs through the real propose/approve functions).
+- Coverage of the prompt's list:
+  - Compliance User with a status_only rule gets status_only and no grants.
+  - Two roles, one full+can_approve and one hidden: resolves to full with can_approve true.
+  - No leak of edit/download/approve from below-full rules: proven in the pure merge function with hand-built rows the database would never allow (hidden and status_only carrying grants merge to a below-full result with all grants false), and separately that Postgres rejects such rows (`dpr_grants_require_full_view`).
+  - Org admin can invite into their own org but not another: refused with `PermissionDeniedError`, and no user row and no audit row is written.
+  - Document type with zero rules: full view, no edit/download/approve.
+  - Superadmin: full/all-true even when every role of every org type is hidden.
+  - Approval creates all five standard roles with the correct `is_org_admin` flags and assigns Organization Admin to the first user.
+  - Every lifecycle function (proposed, approved, rejected, invited, deactivated) writes exactly one audit row with the right action, target type, target id, and actor.
+- Beyond the list: cross-org role ids refused, roleless invites refused, duplicate email in any case refused, double-approve refused, org-admin cannot reach another org's users (NotFound), undefined `organization_id` is not treated as superadmin, `recordAudit` rolls back with its transaction, malformed action names refused.
+
+**Decision made during this step**
+- `mergePermissionRules` now counts each boolean only from rules that are themselves full view (previously it ORed all rules, then cleared the booleans if the merged view was below full). For stored data the two are identical because of the CHECK constraint. The change closes one case the original wording would leave open if that constraint were ever dropped: a below-full rule carrying a grant merged with a full rule from another role would have leaked the grant into a full result. The post-merge re-application of the constraint is kept, as the prompt requires. Covered by the test "does not leak a grant from a below-full rule into a merged result that resolves to full".
+
+**Verification**
+- Full suite: **56 of 56 passing**, run from a freshly dropped and recreated test database (migrations and bootstrap included). `tsc --noEmit` clean.
+- Mutation check, to confirm the tests can fail: removing the full-only guard, removing the own-org check in `inviteUser`, renaming the audit action in `approveOrganization`, and making the defaults grant edit each turned the suite red at the expected tests. Source restored afterward.
+- The suite runs against `veripura_test` only. The dev database (`veripura`, seeded) was confirmed untouched.
+
+**Open items carried forward (not blocking this stage)**
+- Fail closed for deactivated users and suspended orgs belongs in the authentication prompt (see step 2).
+- No database-level immutability on `audit_log` yet (see step 4).
+- Nothing prevents the last Organization Admin from deactivating themselves (see step 3).
+- Default permission matrix is unseeded, by design; seed from the pilot Scope of Work Section 7 with grants left false.
+- No git remote configured for this repo; see stage-end note below.
+
+**Stage 1 status:** complete. Steps 1 to 5 built and tested. No HTTP layer or webhook code, per the prompt.
