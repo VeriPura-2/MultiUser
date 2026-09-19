@@ -55,6 +55,34 @@ describe("roadmap: header", () => {
   });
 });
 
+describe("roadmap: the vessel", () => {
+  it("shows the vessel's name, IMO and MMSI in the header when they are known", async () => {
+    roadmapApi(importerAdmin, { detail: detail({ vesselName: "Sample Voyager", vesselImo: "9074729", vesselMmsi: "235012345" }) });
+    open();
+    await screen.findByText("Seller");
+    const meta = document.querySelector(".rm-meta")!;
+    expect(meta).toHaveTextContent("VesselSample Voyager");
+    expect(meta).toHaveTextContent("IMO9074729");
+    expect(meta).toHaveTextContent("MMSI235012345");
+  });
+
+  it("shows only the parts that are known", async () => {
+    roadmapApi(importerAdmin, { detail: detail({ vesselImo: "9074729" }) });
+    open();
+    await screen.findByText("Seller");
+    expect(screen.getByText("IMO")).toBeInTheDocument();
+    expect(screen.queryByText("Vessel")).not.toBeInTheDocument();
+    expect(screen.queryByText("MMSI")).not.toBeInTheDocument();
+  });
+
+  it("shows no vessel at all, and no placeholder, when none has been entered", async () => {
+    roadmapApi(importerAdmin, { detail: detail() });
+    open();
+    await screen.findByText("Seller");
+    for (const label of ["Vessel", "IMO", "MMSI"]) expect(screen.queryByText(label)).not.toBeInTheDocument();
+  });
+});
+
 describe("roadmap: grouping by category from the API", () => {
   it("groups by whatever categories the API names, alphabetically, with counts", async () => {
     roadmapApi(importerAdmin, {

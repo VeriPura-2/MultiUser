@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "./client";
-import type { ActionQueueResponse, AdminOrganizationDetail, AdminOrganizationSummary, Checklist, ConsignmentDetail, ConsignmentSummary, DirectoryOrg, DevUser, IssueDetail, Me, PartyWorkloadResponse } from "./types";
+import type { ActionQueueResponse, ConsignmentPositionItem, AdminOrganizationDetail, AdminOrganizationSummary, Checklist, ConsignmentDetail, ConsignmentSummary, DirectoryOrg, DevUser, IssueDetail, Me, PartyWorkloadResponse } from "./types";
 
 /** Query keys in one place, so a mutation can invalidate exactly what it changed. */
 export const keys = {
@@ -13,6 +13,7 @@ export const keys = {
   checklist: (id: string) => ["checklist", id] as const,
   issue: (id: string) => ["issue", id] as const,
   exporters: ["exporters"] as const,
+  positions: ["positions"] as const,
   adminOrgs: (status: string) => ["admin-orgs", status] as const,
   adminOrg: (id: string) => ["admin-org", id] as const,
 };
@@ -104,6 +105,7 @@ export function useSubmitConsignment() {
     void client.invalidateQueries({ queryKey: keys.consignments });
     void client.invalidateQueries({ queryKey: keys.actionQueue });
     void client.invalidateQueries({ queryKey: keys.workload });
+    void client.invalidateQueries({ queryKey: keys.positions });
   };
   return useMutation({
     mutationFn: (form: FormData) => api.postForm<{ consignment: ConsignmentDetail }>("/consignments", form).then((r) => r.consignment),
@@ -151,5 +153,22 @@ export function useDecideOrganization(id: string) {
       void client.invalidateQueries({ queryKey: ["admin-orgs"] });
       void client.invalidateQueries({ queryKey: keys.exporters });
     },
+  });
+}
+
+/** How often the map re-reads positions while the tab is showing. This reads only our own database. */
+export const POSITIONS_REFETCH_MS = 60_000;
+
+/**
+ * Where each consignment's vessel is. The server answers from its own database and never calls a
+ * position provider for this, so refetching every minute costs nothing at the provider. The interval
+ * pauses while the tab is hidden (refetchIntervalInBackground is off), so a forgotten tab does no work.
+ */
+export function usePositions() {
+  return useQuery({
+    queryKey: keys.positions,
+    queryFn: () => api.get<{ positions: ConsignmentPositionItem[] }>("/positions").then((r) => r.positions),
+    refetchInterval: POSITIONS_REFETCH_MS,
+    refetchIntervalInBackground: false,
   });
 }

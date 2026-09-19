@@ -1,39 +1,54 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card } from "../../components/Card";
 import { MapView } from "../../map/MapView";
-import { STATE_LABEL, describePosition, type Vessel } from "../../map/vessel";
+import { STATE_LABEL, describePosition, isDrawn, mapFlag, type MapVessel } from "../../map/vessel";
+
+const FLAG_TITLE: Record<ReturnType<typeof mapFlag>["tone"], string> = {
+  sample: "These positions are made-up demonstration data, not real ships.",
+  live: "Positions reported by ships over AIS. Each shows how old it is.",
+  stale: "The last positions received. None is recent, so none is shown as live.",
+  none: "No vessel has a position to show.",
+};
 
 /**
- * The map card: the map, one chip per vessel, an info line for the selected one, and a legend.
- * The positions are sample data and the card says so; see web/src/sample/mapSample.ts.
+ * The map card: the map, one chip per consignment, an info line for the selected one, and a legend.
+ * A consignment with a recent position is a marker, one with an old position is a hollow marker, and
+ * one with no position has no marker, but is still a chip whose info line says why. The flag says
+ * whether what is drawn is sample data or live AIS, and never calls old positions live.
  */
-export function ConsignmentMap({ vessels }: { vessels: Vessel[] }) {
-  const [selectedId, setSelectedId] = useState<string | null>(vessels[0]?.id ?? null);
-  const selected = vessels.find((v) => v.id === selectedId) ?? null;
+export function ConsignmentMap({ vessels }: { vessels: MapVessel[] }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = vessels.find((v) => v.id === selectedId) ?? vessels.find(isDrawn) ?? vessels[0] ?? null;
+  const flag = mapFlag(vessels);
 
   return (
     <Card as="section" aria-label="Consignment map" className="map-card">
       <div className="panel-head map-head">
         <h2>Consignment map</h2>
-        <span className="sample-flag" title="These positions are illustrative. No tracking source is connected yet.">
-          Sample positions
+        <span className={`map-flag ${flag.tone}`} title={FLAG_TITLE[flag.tone]}>
+          {flag.text}
         </span>
       </div>
       <div className="map-box">
         <MapView
           vessels={vessels}
-          selectedId={selectedId}
+          selectedId={selected?.id ?? null}
           onSelect={setSelectedId}
-          ariaLabel="Map of sample consignments between South America, Ireland and the United Kingdom"
+          ariaLabel="Map of the positions of active consignments"
         />
       </div>
-      <div className="chip-row map-chips" role="group" aria-label="Choose a vessel">
-        {vessels.map((v) => (
-          <button key={v.id} type="button" className={`chip${v.id === selectedId ? " on" : ""}`} aria-pressed={v.id === selectedId} onClick={() => setSelectedId(v.id)}>
-            {v.label}
-          </button>
-        ))}
-      </div>
+      {vessels.length === 0 ? (
+        <p className="map-empty">There are no active consignments to show on the map.</p>
+      ) : (
+        <div className="chip-row map-chips" role="group" aria-label="Choose a consignment">
+          {vessels.map((v) => (
+            <button key={v.id} type="button" className={`chip${v.id === selected?.id ? " on" : ""}`} aria-pressed={v.id === selected?.id} onClick={() => setSelectedId(v.id)}>
+              {v.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="map-info" aria-live="polite">
         {selected ? (
           <>
@@ -45,7 +60,10 @@ export function ConsignmentMap({ vessels }: { vessels: Vessel[] }) {
               {selected.routeLabel} &middot; {selected.statusText}
             </span>
             <br />
-            <span className="soft">{describePosition(selected)} (sample)</span>
+            <span className="soft">{describePosition(selected)}</span>{" "}
+            <Link to={`/consignments/${selected.id}`} className="map-open">
+              Open roadmap &rarr;
+            </Link>
           </>
         ) : null}
       </div>

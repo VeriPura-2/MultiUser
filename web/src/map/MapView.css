@@ -8,8 +8,9 @@
 /* Fallback land, drawn from bundled data underneath the tiles. */
 .landfb{fill:var(--map-land); stroke:var(--map-land-line); stroke-width:.6; fill-opacity:1;}
 
-/* Routes */
-.rt{fill:none; stroke-width:2; stroke-linecap:round; transition:opacity .2s;}
+/* Trails: the thin line a vessel has actually sailed */
+/* The width comes from Leaflet's own weight option, so that a selected trail can be drawn thicker. */
+.rt{fill:none; stroke-linecap:round; transition:opacity .2s;}
 .rt-issue{stroke:var(--solid-red);}
 .rt-ok{stroke:var(--solid-green);}
 .rt-done{stroke:var(--gray);}

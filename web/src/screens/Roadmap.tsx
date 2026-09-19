@@ -89,6 +89,24 @@ function RoadmapHeader({ consignmentId, detail }: { consignmentId: string; detai
             <dt>Product</dt>
             <dd>{detail.commodity}</dd>
           </div>
+          {detail.vesselName ? (
+            <div>
+              <dt>Vessel</dt>
+              <dd>{detail.vesselName}</dd>
+            </div>
+          ) : null}
+          {detail.vesselImo ? (
+            <div>
+              <dt>IMO</dt>
+              <dd>{detail.vesselImo}</dd>
+            </div>
+          ) : null}
+          {detail.vesselMmsi ? (
+            <div>
+              <dt>MMSI</dt>
+              <dd>{detail.vesselMmsi}</dd>
+            </div>
+          ) : null}
           <div>
             <dt>Status</dt>
             <dd>{status ? <Badge tone={status.tone}>{status.label}</Badge> : null}</dd>

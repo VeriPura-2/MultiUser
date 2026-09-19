@@ -1,4 +1,4 @@
-import type { ActionQueueItem, AdminOrganizationDetail, AdminOrganizationSummary, ConsignmentDetail, ConsignmentSummary, DevUser, FullChecklistItem, IssueDetail, Me, PartyWorkloadRow, StatusOnlyChecklistItem } from "../src/api/types";
+import type { ActionQueueItem, ConsignmentPositionItem, AdminOrganizationDetail, AdminOrganizationSummary, ConsignmentDetail, ConsignmentSummary, DevUser, FullChecklistItem, IssueDetail, Me, PartyWorkloadRow, StatusOnlyChecklistItem } from "../src/api/types";
 import { mockApi, respond } from "./mockApi";
 
 /**
@@ -67,6 +67,9 @@ export function consignment(overrides: Partial<ConsignmentSummary> = {}): Consig
     exporterOrgName: "Sample Exporter Alpha",
     originCountry: "BR",
     destinationCountry: "GB",
+    vesselImo: null,
+    vesselMmsi: null,
+    vesselName: null,
     checklistCompleteness: { verified: 1, total: 4 },
     openIssueCount: 0,
     ...overrides,
@@ -98,7 +101,7 @@ export const workloadRow = (name: string, activeConsignmentCount = 1): PartyWork
 /** Mocks everything the dashboard asks for, as `user`. Anything not given is empty. */
 export function dashboardApi(
   user: Me,
-  data: { consignments?: ConsignmentSummary[]; queue?: ActionQueueItem[]; parties?: PartyWorkloadRow[] } = {},
+  data: { consignments?: ConsignmentSummary[]; queue?: ActionQueueItem[]; parties?: PartyWorkloadRow[]; positions?: ConsignmentPositionItem[] } = {},
   extra: Record<string, unknown> = {},
 ) {
   localStorage.setItem("vp-dev-user", user.userId);
@@ -107,6 +110,7 @@ export function dashboardApi(
     "GET /consignments": { consignments: data.consignments ?? [] },
     "GET /parties/workload": { orgId: user.organization?.id ?? "", counterparties: data.parties ?? [] },
     "GET /action-queue": { orgId: user.organization?.id ?? "", items: data.queue ?? [] },
+    "GET /positions": { positions: data.positions ?? [] },
     ...extra,
   });
 }
@@ -121,6 +125,9 @@ export function detail(overrides: Partial<ConsignmentDetail> = {}): ConsignmentD
     hsCode: "0202.30",
     originCountry: "BR",
     destinationCountry: "GB",
+    vesselImo: null,
+    vesselMmsi: null,
+    vesselName: null,
     importerOrg: { id: "org-importer", name: "Sample Importer Ltd" },
     exporterOrg: { id: "org-alpha", name: "Sample Exporter Alpha" },
     createdAt: "2026-09-16T09:30:00.000Z",
@@ -279,3 +286,37 @@ export function adminApi(
     ...extra,
   });
 }
+
+// Position data ----------------------------------------------------------------------------
+
+/** A position as GET /positions gives it. Defaults to a recent, real (not sample) one. */
+export function positionItem(consignmentId: string, overrides: Partial<ConsignmentPositionItem> = {}): ConsignmentPositionItem {
+  return {
+    consignmentId,
+    freshness: "recent",
+    reason: null,
+    lat: 50.1,
+    lng: -2.2,
+    speedKnots: 12.5,
+    headingDeg: 88,
+    positionTime: new Date(Date.now() - 10 * 60_000).toISOString(),
+    ageSeconds: 600,
+    isSample: false,
+    trail: [],
+    ...overrides,
+  };
+}
+
+export const noPosition = (consignmentId: string, reason: "no_vessel_identifier" | "no_position_received"): ConsignmentPositionItem => ({
+  consignmentId,
+  freshness: "unavailable",
+  reason,
+  lat: null,
+  lng: null,
+  speedKnots: null,
+  headingDeg: null,
+  positionTime: null,
+  ageSeconds: null,
+  isSample: false,
+  trail: [],
+});

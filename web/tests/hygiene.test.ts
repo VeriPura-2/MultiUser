@@ -63,6 +63,25 @@ describe("what the app must never contain", () => {
   });
 });
 
+/** An import of the sample fixture (a comment that names the file is not one). */
+const IMPORTS_SAMPLE = /from\s+["'][^"']*sample\/mapSample["']/;
+
+describe("the sample map data is a fixture only", () => {
+  it("is not imported by any file the app ships", () => {
+    const importers = shipped.filter((f) => /\.(ts|tsx)$/.test(f) && rel(f) !== "src/sample/mapSample.ts").filter((f) => IMPORTS_SAMPLE.test(read(f)));
+    expect(importers.map(rel)).toEqual([]);
+  });
+
+  it("the guard can fail: it would find such an import if there were one", () => {
+    expect(IMPORTS_SAMPLE.test('import { SAMPLE_VESSELS } from "../sample/mapSample";')).toBe(true);
+    expect(IMPORTS_SAMPLE.test("// see web/src/sample/mapSample.ts")).toBe(false); // a mention in a comment is not an import
+  });
+
+  it("no code in the app talks to a position provider: the browser only ever calls /api", () => {
+    expect(offenders(/vesselapi|VESSELAPI|aisstream|datalastic|vesselfinder/i, shipped.filter((f) => /\.(ts|tsx)$/.test(f)))).toEqual([]);
+  });
+});
+
 describe("design rules", () => {
   it("uses no hard-coded colour outside tokens.css: every colour comes from a token", () => {
     const files = shipped.filter((f) => /\.(ts|tsx|css|html)$/.test(f) && !isTokenFile(f));

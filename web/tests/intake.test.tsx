@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { COUNTRY_CODES, countryOptions } from "../src/countries";
 import { MAX_FILE_BYTES, buildIntakeForm, fileProblem, validateIntake, EMPTY_INTAKE } from "../src/screens/intake/model";
+import { IMO_CHECK_DIGIT_MESSAGE, IMO_LENGTH_MESSAGE, MMSI_LENGTH_MESSAGE, VESSEL_NAME_LENGTH_MESSAGE } from "../src/vessel";
 import { formatBytes } from "../src/format";
 import { consignment, dashboardApi, detail, exporterAdmin, exporterOrgs, importerAdmin, intakeApi } from "./fixtures";
 import { respond } from "./mockApi";
@@ -355,9 +356,100 @@ describe("countries and form helpers", () => {
 
   it("buildIntakeForm trims, omits a blank HS code, and carries the file", () => {
     const file = pdf("a.pdf");
-    const form = buildIntakeForm({ file, exporterOrgId: "x", commodity: "  beef ", hsCode: "  ", originCountry: "BR", destinationCountry: "GB" });
+    const form = buildIntakeForm({ file, exporterOrgId: "x", commodity: "  beef ", hsCode: "  ", originCountry: "BR", destinationCountry: "GB", vesselName: "", vesselImo: "", vesselMmsi: "" });
     expect(form.get("commodity")).toBe("beef");
     expect(form.has("hsCode")).toBe(false);
     expect((form.get("file") as File).name).toBe("a.pdf");
+  });
+});
+
+describe("intake: the optional vessel", () => {
+  const goodApi = () =>
+    intakeApi(importerAdmin, exporterOrgs, {
+      "POST /consignments": { consignment: created() },
+      "GET /consignments/:id": created(),
+      "GET /consignments/:id/checklist": { consignmentId: "new-consignment-id", consignmentStatus: "checklist_received", checklist: [] },
+    });
+  const type = (label: RegExp, text: string) => userEvent.type(screen.getByLabelText(label), text);
+
+  it("offers three optional fields, and asks for none of them", async () => {
+    goodApi();
+    open();
+    await screen.findByLabelText("Exporter");
+    for (const label of ["Vessel name (optional)", "IMO number (optional)", "MMSI (optional)"]) expect(screen.getByLabelText(label)).toBeInTheDocument();
+    expect(screen.getByLabelText("IMO number (optional)")).toHaveAttribute("inputmode", "numeric");
+    expect(Object.keys(validateIntake(EMPTY_INTAKE)).sort()).toEqual(["commodity", "destinationCountry", "exporterOrgId", "file", "originCountry"]);
+  });
+
+  it("sends the vessel with the purchase order when it is given, trimmed, and only the fields that were filled", async () => {
+    const api = goodApi();
+    open();
+    await fillAll();
+    await type(/Vessel name/, "  Sample Voyager ");
+    await type(/IMO number/, " 9074729 ");
+    await submit();
+    await screen.findByRole("heading", { level: 1, name: /Frozen boneless beef/ });
+    const form = api.callsTo("POST /consignments")[0]!.form!;
+    expect(form.get("vesselName")).toBe("Sample Voyager");
+    expect(form.get("vesselImo")).toBe("9074729");
+    expect(form.has("vesselMmsi")).toBe(false);
+  });
+
+  it("sends an MMSI alone, with its leading zero", async () => {
+    const api = goodApi();
+    open();
+    await fillAll();
+    await type(/MMSI/, "012345678");
+    await submit();
+    await screen.findByRole("heading", { level: 1, name: /Frozen boneless beef/ });
+    const form = api.callsTo("POST /consignments")[0]!.form!;
+    expect(form.get("vesselMmsi")).toBe("012345678");
+    expect(form.has("vesselImo")).toBe(false);
+    expect(form.has("vesselName")).toBe(false);
+  });
+
+  it("says exactly what the API would say about each bad value, sends nothing, and puts focus on the first", async () => {
+    const api = goodApi();
+    open();
+    await fillAll();
+    await type(/Vessel name/, "x".repeat(101));
+    await type(/IMO number/, "9074728"); // the check digit is wrong
+    await type(/MMSI/, "12345678"); // eight digits
+    await submit();
+    expect(screen.getByText(VESSEL_NAME_LENGTH_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByText(IMO_CHECK_DIGIT_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByText(MMSI_LENGTH_MESSAGE)).toBeInTheDocument();
+    expect(screen.getByLabelText("Vessel name (optional)")).toHaveFocus();
+    expect(screen.getByLabelText("IMO number (optional)")).toHaveAttribute("aria-invalid", "true");
+    expect(api.callsTo("POST /consignments")).toHaveLength(0);
+  });
+
+  it("says the length message for an IMO that is not seven digits, and clears each message as it is fixed", async () => {
+    goodApi();
+    open();
+    await fillAll();
+    await type(/IMO number/, "12345");
+    await submit();
+    expect(screen.getByText(IMO_LENGTH_MESSAGE)).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("IMO number (optional)"));
+    expect(screen.queryByText(IMO_LENGTH_MESSAGE)).not.toBeInTheDocument();
+  });
+
+  it("shows the API's own 422 message if it refuses a vessel the form let through", async () => {
+    intakeApi(importerAdmin, exporterOrgs, { "POST /consignments": respond(422, { error: "unprocessable", message: "IMO number is not valid: its check digit does not match." }) });
+    open();
+    await fillAll();
+    await type(/IMO number/, "9074729");
+    await submit();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/check digit does not match/);
+  });
+
+  it("validateIntake and buildIntakeForm treat blank vessel fields as none, and check only what is typed", () => {
+    const base = { ...EMPTY_INTAKE, file: pdf(), exporterOrgId: "x", commodity: "beef", originCountry: "BR", destinationCountry: "GB" };
+    expect(validateIntake({ ...base, vesselImo: "   ", vesselMmsi: "  ", vesselName: " " })).toEqual({});
+    expect(validateIntake({ ...base, vesselImo: "9074729", vesselMmsi: "235012345", vesselName: "x".repeat(100) })).toEqual({});
+    expect(Object.keys(validateIntake({ ...base, vesselImo: "9074728" }))).toEqual(["vesselImo"]);
+    const form = buildIntakeForm({ ...base, vesselName: "  Name ", vesselImo: "  ", vesselMmsi: "235012345" });
+    expect([form.get("vesselName"), form.has("vesselImo"), form.get("vesselMmsi")]).toEqual(["Name", false, "235012345"]);
   });
 });

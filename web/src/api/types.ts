@@ -47,6 +47,9 @@ export interface ConsignmentSummary {
   exporterOrgName: string;
   originCountry: string;
   destinationCountry: string;
+  vesselImo: string | null;
+  vesselMmsi: string | null;
+  vesselName: string | null;
   checklistCompleteness: { verified: number; total: number };
   openIssueCount: number;
 }
@@ -58,6 +61,9 @@ export interface ConsignmentDetail {
   hsCode: string | null;
   originCountry: string;
   destinationCountry: string;
+  vesselImo: string | null;
+  vesselMmsi: string | null;
+  vesselName: string | null;
   importerOrg: { id: string; name: string };
   exporterOrg: { id: string; name: string };
   createdAt: string;
@@ -195,4 +201,25 @@ export interface RolePermission {
 
 export interface AdminOrganizationDetail extends AdminOrganizationSummary {
   roles: Array<{ name: string; isOrgAdmin: boolean; permissions: RolePermission[] }>;
+}
+
+/** How current a vessel's position is. Decided by the server, from a configured age. */
+export type PositionFreshness = "recent" | "stale" | "unavailable";
+export type PositionUnavailableReason = "no_vessel_identifier" | "no_position_received";
+
+/** One consignment's position from GET /positions. Every position field is null when there is none. */
+export interface ConsignmentPositionItem {
+  consignmentId: string;
+  freshness: PositionFreshness;
+  reason: PositionUnavailableReason | null;
+  lat: number | null;
+  lng: number | null;
+  speedKnots: number | null;
+  headingDeg: number | null;
+  positionTime: string | null;
+  ageSeconds: number | null;
+  /** True when the position is made-up demo data. */
+  isSample: boolean;
+  /** The last 24 hours of positions, oldest first. Absent when not asked for. */
+  trail?: Array<{ lat: number; lng: number; positionTime: string }>;
 }

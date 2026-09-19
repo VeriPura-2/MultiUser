@@ -10,6 +10,9 @@ const B = "bbbbbbbb-0000-4000-8000-000000000002";
 const C = "cccccccc-0000-4000-8000-000000000003";
 const D = "dddddddd-0000-4000-8000-000000000004";
 
+/** The consignment list, as a region. The map's info line repeats a consignment's title, so list rows are looked up inside it. */
+const inList = async () => within(await screen.findByRole("region", { name: "Consignments" }));
+
 /** The four headline numbers as { label: value }. */
 function stats(): Record<string, string> {
   return Object.fromEntries(
@@ -217,7 +220,7 @@ describe("dashboard: consignment list", () => {
     });
     renderApp("/");
 
-    const first = (await screen.findByText("#AAAAAAAA · Frozen boneless beef")).closest("a")!;
+    const first = (await (await inList()).findByText("#AAAAAAAA · Frozen boneless beef")).closest("a")!;
     expect(first).toHaveAttribute("href", `/consignments/${A}`);
     expect(first).toHaveClass("has-issues");
     expect(first).toHaveTextContent("Sample Exporter Alpha → Sample Importer Ltd");
@@ -227,7 +230,7 @@ describe("dashboard: consignment list", () => {
     expect(within(first).getByText("In review")).toHaveClass("badge", "blue");
     expect(first.querySelector(".bar-fill")).toHaveStyle({ width: "45%" });
 
-    const second = screen.getByText("#BBBBBBBB · Frozen lamb legs").closest("a")!;
+    const second = (await inList()).getByText("#BBBBBBBB · Frozen lamb legs").closest("a")!;
     expect(second).not.toHaveClass("has-issues");
     expect(second).toHaveTextContent("Argentina → United Kingdom");
     expect(second).toHaveTextContent("100% complete");
@@ -250,7 +253,8 @@ describe("dashboard: consignment list", () => {
     await screen.findByRole("heading", { name: "Finished consignments" });
     const names = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     expect(names.indexOf("Active consignments")).toBeLessThan(names.indexOf("Finished consignments"));
-    const live = screen.getByText(/Live Cargo/).compareDocumentPosition(screen.getByText(/Old Cargo/));
+    const rows = await inList();
+    const live = rows.getByText(/Live Cargo/).compareDocumentPosition(rows.getByText(/Old Cargo/));
     expect(live & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText("Completed")).toBeInTheDocument();
   });
@@ -267,7 +271,7 @@ describe("dashboard: consignment list", () => {
     Element.prototype.scrollIntoView = scroll;
     dashboardApi(importerAdmin, { consignments: [consignment()] });
     renderApp("/#consignments");
-    await screen.findByText(/#0000/);
+    await (await inList()).findByText(/#0000/);
     await waitFor(() => expect(scroll).toHaveBeenCalled());
     expect(scroll.mock.contexts[0]).toBe(document.getElementById("consignments"));
     // @ts-expect-error restore jsdom's lack of it
@@ -283,7 +287,7 @@ describe("dashboard: loading and errors", () => {
     expect(await screen.findByText("Loading consignments")).toBeInTheDocument();
     expect(screen.getByText("Loading portfolio figures")).toBeInTheDocument();
     release({ consignments: [consignment({ commodity: "Arrived Cargo" })] });
-    expect(await screen.findByText(/Arrived Cargo/)).toBeInTheDocument();
+    expect(await (await inList()).findByText(/Arrived Cargo/)).toBeInTheDocument();
   });
 
   it("shows a plain error with a retry when the consignment list fails, and the retry works", async () => {
@@ -294,7 +298,7 @@ describe("dashboard: loading and errors", () => {
     renderApp("/");
     await waitFor(() => expect(screen.getAllByRole("alert").length).toBeGreaterThan(0));
     await userEvent.click(screen.getAllByRole("button", { name: "Try again" })[0]!);
-    expect(await screen.findByText(/Recovered Cargo/)).toBeInTheDocument();
+    expect(await (await inList()).findByText(/Recovered Cargo/)).toBeInTheDocument();
     expect(attempts).toBe(2);
   });
 
@@ -305,14 +309,14 @@ describe("dashboard: loading and errors", () => {
     renderApp("/");
     const queueCard = await screen.findByRole("region", { name: "Required documents action queue" });
     expect(await within(queueCard).findByRole("alert")).toHaveTextContent(/something went wrong/i);
-    expect(await screen.findByText(/Still Here/)).toBeInTheDocument();
+    expect(await (await inList()).findByText(/Still Here/)).toBeInTheDocument();
     expect(stats()["Active consignments"]).toBe("1");
   });
 
   it("does not offer things the exclusions rule out", async () => {
     dashboardApi(importerAdmin, { consignments: [consignment()] });
     renderApp("/");
-    await screen.findByText(/#0000/);
+    await (await inList()).findByText(/#0000/);
     for (const text of [/wallet/i, /VERI token/i, /Guardian/i, /forensic/i, /passport/i]) {
       expect(document.body.textContent).not.toMatch(text);
     }

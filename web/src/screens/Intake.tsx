@@ -20,6 +20,9 @@ const INPUT_ID: Record<IntakeField, string> = {
   commodity: "intake-commodity",
   originCountry: "intake-origin",
   destinationCountry: "intake-destination",
+  vesselName: "intake-vessel-name",
+  vesselImo: "intake-vessel-imo",
+  vesselMmsi: "intake-vessel-mmsi",
 };
 
 /** The purchase order form: upload the file, say who it is from and what is shipped, and submit. */
@@ -101,7 +104,7 @@ function IntakeForm() {
 
   return (
     <form onSubmit={onSubmit} noValidate>
-      <p className="in-lead">Upload the purchase order, then say who it is from and what is being shipped. Nothing is filled in for you.</p>
+      <p className="in-lead">Upload the purchase order, then say who it is from and what is being shipped. If you know the vessel, add it; you can leave it blank. Nothing is filled in for you.</p>
 
       <Card className={`in-step${values.file ? " done" : ""}`}>
         <div className="in-step-head">
@@ -143,6 +146,15 @@ function IntakeForm() {
           <Field id="intake-hs" label="HS code (optional)">
             <input id="intake-hs" type="text" value={values.hsCode} onChange={(e) => set("hsCode", e.target.value)} />
           </Field>
+          <Field id={INPUT_ID.vesselName} label="Vessel name (optional)" error={errors.vesselName}>
+            <TextInput field="vesselName" value={values.vesselName} error={errors.vesselName} onChange={(v) => set("vesselName", v)} />
+          </Field>
+          <Field id={INPUT_ID.vesselImo} label="IMO number (optional)" error={errors.vesselImo}>
+            <TextInput field="vesselImo" value={values.vesselImo} error={errors.vesselImo} onChange={(v) => set("vesselImo", v)} inputMode="numeric" />
+          </Field>
+          <Field id={INPUT_ID.vesselMmsi} label="MMSI (optional)" error={errors.vesselMmsi}>
+            <TextInput field="vesselMmsi" value={values.vesselMmsi} error={errors.vesselMmsi} onChange={(v) => set("vesselMmsi", v)} inputMode="numeric" />
+          </Field>
         </div>
 
         {submit.isError ? (
@@ -177,6 +189,13 @@ function Field({ id, label, error, children }: { id: string; label: string; erro
         </div>
       ) : null}
     </div>
+  );
+}
+
+function TextInput({ field, value, error, onChange, inputMode }: { field: IntakeField; value: string; error?: string; onChange: (v: string) => void; inputMode?: "numeric" }) {
+  const id = INPUT_ID[field];
+  return (
+    <input id={id} type="text" inputMode={inputMode} value={value} onChange={(e) => onChange(e.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} />
   );
 }
 

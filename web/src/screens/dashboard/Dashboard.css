@@ -26,7 +26,12 @@
 
 /* Map card */
 .map-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding-bottom:12px;}
-.sample-flag{font-family:var(--font-ui); font-size:14px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--gold-deep); background:var(--gold-bg); padding:2px 8px; border-radius:3px;}
+.map-flag{font-family:var(--font-ui); font-size:14px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:2px 8px; border-radius:3px;}
+.map-flag.sample{color:var(--gold-deep); background:var(--gold-bg);}
+.map-flag.live{color:var(--green); background:var(--green-bg);}
+.map-flag.stale,.map-flag.none{color:var(--gray); background:var(--gray-bg);}
+.map-empty{padding:12px 18px 0; font-family:var(--font-ui); font-size:15px; color:var(--charcoal-soft); margin:0;}
+.map-open{font-weight:700; color:var(--gold-deep); border-bottom:1px solid var(--gold-deep); white-space:nowrap;}
 .map-box{border-top:1px solid var(--line); border-bottom:1px solid var(--line);}
 .map-chips{padding:12px 18px 6px;}
 .map-info{padding:6px 18px 16px; font-family:var(--font-ui); font-size:15px; min-height:78px;}

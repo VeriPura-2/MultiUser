@@ -1,16 +1,17 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { useActionQueue, useConsignments, usePartyWorkload } from "../api/hooks";
+import { useActionQueue, useConsignments, usePartyWorkload, usePositions } from "../api/hooks";
 import { useCurrentUser } from "../auth/CurrentUser";
+import { Card } from "../components/Card";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { count } from "../format";
-import { SAMPLE_VESSELS } from "../sample/mapSample";
 import { ThemeToggle } from "../theme/ThemeToggle";
 import { ActionQueue } from "./dashboard/ActionQueue";
 import { AttentionBand } from "./dashboard/AttentionBand";
 import { ConsignmentList } from "./dashboard/ConsignmentList";
 import { StatsRow } from "./dashboard/StatsRow";
+import { buildMapVessels } from "./dashboard/mapModel";
 import { counterpartyNoun, firstIssue, liveConsignments } from "./dashboard/model";
 import "./dashboard/Dashboard.css";
 
@@ -23,7 +24,14 @@ export function Dashboard() {
   const consignments = useConsignments();
   const workload = usePartyWorkload();
   const queue = useActionQueue();
+  const positions = usePositions();
   const { hash } = useLocation();
+
+  // Rebuilt only when the consignments or the positions actually change, so the map is not redrawn every minute for nothing.
+  const vessels = useMemo(
+    () => (consignments.data && positions.data ? buildMapVessels(consignments.data, positions.data) : null),
+    [consignments.data, positions.data],
+  );
 
   // The sidebar's Consignments entry links to #consignments on this page.
   useEffect(() => {
@@ -57,9 +65,19 @@ export function Dashboard() {
       <StatsRow consignments={consignments} workload={workload} orgType={me.organization?.orgType} />
 
       <div className="split">
-        <Suspense fallback={<LoadingSkeleton lines={6} label="Loading map" />}>
-          <ConsignmentMap vessels={SAMPLE_VESSELS} />
-        </Suspense>
+        {vessels ? (
+          <Suspense fallback={<LoadingSkeleton lines={6} label="Loading map" />}>
+            <ConsignmentMap vessels={vessels} />
+          </Suspense>
+        ) : (
+          <MapPlaceholder
+            error={positions.isError ? positions.error : consignments.isError ? consignments.error : null}
+            onRetry={() => {
+              void positions.refetch();
+              void consignments.refetch();
+            }}
+          />
+        )}
         <ActionQueue queue={queue} />
       </div>
 
@@ -71,5 +89,15 @@ export function Dashboard() {
         <LoadingSkeleton lines={4} label="Loading consignments" />
       )}
     </>
+  );
+}
+
+/** What the map card shows until there is something to draw: a loading state, or why there is nothing. */
+function MapPlaceholder({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  if (error) return <ErrorState error={error} onRetry={onRetry} />;
+  return (
+    <Card as="section" aria-label="Consignment map, loading" className="map-card map-loading">
+      <LoadingSkeleton lines={6} label="Loading map" />
+    </Card>
   );
 }
