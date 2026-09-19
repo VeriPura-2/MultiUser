@@ -507,3 +507,27 @@ The point of this work is that a session with no history can restart the project
 **Known limit, stated plainly:** the hooks and `--full` audit prove the docs were touched and the checkable facts (test count, date, sections, append-only, no em dashes) are true. They cannot prove the prose is complete or that every open item is still open. `/pickup`'s drift step and the standing rules are what cover that, and only by sampling.
 
 **Tests:** 206 of 206.
+
+---
+
+# UI-1: API surface for the UI
+
+Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-1 (eight numbered items). Existing endpoint behavior and the permission model are not changed. Each step commits with its own tests; item 8 ("Tests") is satisfied by those per-step tests plus a final cross-cutting pass, recorded in the last entry.
+
+## 2026-09-19, UI-1 step 1: dev-only acting user and `GET /me`
+
+**Built**
+- `AUTH_MODE=dev` is now the switch for the dev acting user, with an `X-Dev-User` header (a user id). `src/http/actor.ts` (`devActorEnabled`, `assertDevModeSafe`, header handling), `src/http/app.ts` (new `actor` option, the production guard, route registration).
+- `GET /me` (`src/http/me.ts`, `src/services/me.ts`): `{ userId, name, email, organization: { id, name, orgType } | null, roleNames, isSuperadmin }`. 401 without an acting user, 403 for a user who is not active.
+- `GET /dev/users`: every user with organization, roles, and status, for the UI-2 dev user switcher. **Not in the UI-1 list.** It exists because UI-2 requires a switcher "listing the seeded users" and no other route can supply that list. It answers 404 unless the dev mechanism is on, and needs no acting user (the switcher must list users before one is chosen).
+- `.env.example` gains `AUTH_MODE=dev` (the sandbox default); the local `.env` was updated the same way. `vitest.config.ts` pins `AUTH_MODE` empty so the suite never depends on a local `.env`.
+
+**Decisions**
+- **Reconciling the two dev-actor mechanisms (flagged in the project memory).** The spec names `AUTH_MODE=dev` and `X-Dev-User`. Earlier stages used `ALLOW_DEV_ACTOR_HEADER=true` and `X-Acting-User-Id`, and about 15 existing tests rely on them. The prompt says not to change existing endpoint behavior, so the spec's names are now primary and the old ones remain as a **deprecated alias**: either env var switches the mechanism on, either header is accepted, and `X-Dev-User` wins if both are sent. No existing test was edited. The alias can be removed in a later cleanup.
+- **The production guard covers every way of turning the mechanism on.** `buildApp` throws ("Refusing to start") if it is on under `NODE_ENV=production`, whether via `AUTH_MODE=dev`, the deprecated `ALLOW_DEV_ACTOR_HEADER=true`, or an explicit option. The spec only named `AUTH_MODE=dev`. Leaving the old switch unguarded would have kept exactly the hole the guard exists to close.
+- Only `AUTH_MODE=dev` enables anything. Any other value (for example `google`, the eventual real mode) leaves the mechanism off, which is the safe default.
+- `/me` `name` is nullable, because users created by invitation have no name until they set one. The UI should fall back to the email.
+- `/me` lists only roles belonging to the user's own organization, the same rule the permission engine applies, so a stray cross-org role assignment cannot show up.
+- The option name `purchaseOrders` on `AppOptions` was misleading (it configures actor resolution for every route). New name `actor`; the old one is kept as an alias so no caller changes.
+
+**Tests:** 14 new in `tests/me.test.ts` (superadmin, normal user with sorted roles, org admin, cross-org role exclusion, 401 cases, 403 inactive, both headers and precedence, `AUTH_MODE` values, the deprecated switch, refusal to start under production for all three ways of enabling, normal production start, `/dev/users` on and off). Full suite: **220 of 220**.

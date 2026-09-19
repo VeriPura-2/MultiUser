@@ -21,6 +21,7 @@ export default defineConfig({
       VERIPURA_CORE_WEBHOOK_URL: "",
       VERIPURA_CORE_WEBHOOK_SECRET: "test-webhook-secret",
       ALLOW_DEV_ACTOR_HEADER: "false",
+      AUTH_MODE: "",
     },
     testTimeout: 20_000,
     hookTimeout: 30_000,

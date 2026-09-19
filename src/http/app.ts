@@ -1,18 +1,35 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { NotFoundError, PermissionDeniedError, ValidationError, VeriPuraCoreError } from "../errors.js";
-import { purchaseOrderRoutes, type PurchaseOrderRouteOptions } from "./purchaseOrders.js";
+import { assertDevModeSafe, devActorEnabled, type ActorOptions } from "./actor.js";
+import { meRoutes } from "./me.js";
+import { purchaseOrderRoutes } from "./purchaseOrders.js";
 import { viewRoutes } from "./views.js";
 import { webhookRoutes, type WebhookRouteOptions } from "./webhooks.js";
 
 export interface AppOptions {
   logger?: boolean;
   webhook?: WebhookRouteOptions;
-  /** Actor resolution for every route that needs one. Defaults to ALLOW_DEV_ACTOR_HEADER=true, otherwise off. */
-  purchaseOrders?: PurchaseOrderRouteOptions;
+  /**
+   * Actor resolution for every route that needs an acting user. Defaults to on when
+   * AUTH_MODE=dev (or the deprecated ALLOW_DEV_ACTOR_HEADER=true), otherwise off.
+   */
+  actor?: ActorOptions;
+  /** Deprecated alias for `actor`, kept so earlier callers and tests keep working. */
+  purchaseOrders?: ActorOptions;
 }
 
-/** Builds the HTTP app without listening, so tests can drive it with app.inject(). */
+/**
+ * Builds the HTTP app without listening, so tests can drive it with app.inject().
+ * Throws, and so refuses to start, if the dev-only acting user is on under NODE_ENV=production.
+ */
 export function buildApp(options: AppOptions = {}): FastifyInstance {
+  const actorOptions: ActorOptions = {
+    allowDevActorHeader: devActorEnabled(),
+    ...options.purchaseOrders,
+    ...options.actor,
+  };
+  assertDevModeSafe(actorOptions.allowDevActorHeader ?? false);
+
   const app = Fastify({ logger: options.logger ?? false });
 
   // Set before the routes are registered so every encapsulated plugin inherits it.
@@ -33,9 +50,9 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
 
   app.get("/health", async () => ({ ok: true }));
   app.register(webhookRoutes, options.webhook ?? {});
-  const actorOptions = { allowDevActorHeader: process.env.ALLOW_DEV_ACTOR_HEADER === "true", ...options.purchaseOrders };
   app.register(purchaseOrderRoutes, actorOptions);
   app.register(viewRoutes, actorOptions);
+  app.register(meRoutes, actorOptions);
 
   return app;
 }
