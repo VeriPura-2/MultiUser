@@ -1,0 +1,5 @@
+#!/bin/sh
+# Blocks a commit that changes code, tests, migrations, scripts, or config without also updating
+# docs/build-log.md and docs/PROJECT_MEMORY.md. See scripts/memory-check.mjs for every rule.
+# Enabled by `npm install` (the "prepare" script sets core.hooksPath to .githooks).
+exec node scripts/memory-check.mjs --staged

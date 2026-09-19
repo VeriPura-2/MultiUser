@@ -9,7 +9,7 @@ Keep this file short and current. It must stay under about 250 lines because it 
 Update it when the state changes. Do not turn it into a second build log.
 
 Last updated: 2026-09-19
-Tests passing: 170
+Tests passing: 206
 Stages complete: 3 of 3 (Prompt 4, Stripe, not started)
 
 ## Standing rules (Thomas's, apply to every session)
@@ -97,7 +97,9 @@ All dates 2026-09-19. Hashes are the pushed ones (history was corrected twice be
 | Stage 2: PO intake | Consignments, POs, checklist, issues, VeriPura core contract (stub and live), signed inbound webhook, 133 tests | `155427e` |
 | First push | History corrected (two design docs removed) and re-authored to the GitHub noreply address before the first push to `origin` | `3efd9d3` |
 | Stage 3: role-scoped views | Checklist per consignment, consignment list, workload by counterparty, 170 tests | `8467261` |
-| Project memory | This file, then the enforcement and restart commands described above | see `git log` |
+| Project memory, step 1 | `CLAUDE.md`, this file restructured, `BUILD_PROMPTS.md` (the original spec) | `0ec6e2e` |
+| Project memory, step 2 | The enforcement: `scripts/memory-check.mjs`, the git pre-commit hook, the Claude Code Stop hook, 36 tests of the enforcement itself (206 total) | see `git log` |
+| Project memory, step 3 | `/pickup` and `/wrapup`, the `veripura` command, thin auto-memory pointers | see `git log` |
 
 Key decisions (full reasoning in the build log): 404 not 403 for non-parties; a bulk permission
 resolver shared with `resolveDocumentPermissions`; hidden source documents are not named in
@@ -129,5 +131,7 @@ Full description in `docs/BUILD_PROMPTS.md`, notes section.
 - **Git identity:** GitHub blocks pushes whose commits use the personal Gmail (GH007). This repo sets a local noreply email; a fresh clone needs the same local setting.
 - Two design documents live beside the code and are not part of the repo (gitignored). `git add -A` once committed them by accident. Stage explicit paths.
 - Do not run `git filter-branch` without checking the working tree afterward. It deletes files that stop being tracked.
+- An untracked `UI Mockup/` folder (Thomas's HTML and PNG design files for the dashboard, intake, issue, roadmap, and superadmin approval screens) sits in the repo folder. It is a design input for the later UI pass, not code. Do not commit it unless Thomas says so. The memory check deliberately ignores it.
+- The memory check on this project takes about a second per commit, and its test file about 45 seconds because it builds throwaway git repos. That is expected.
 - Tests truncate every table. The runner refuses to start unless the database name ends in `_test`.
 - Claude's own memory is keyed by working directory, so only files in this repo reliably carry over. That is why this file exists.

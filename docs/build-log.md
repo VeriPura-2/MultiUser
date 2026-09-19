@@ -435,3 +435,36 @@ project's own memory, and the memory cannot fall behind. Four steps: 1 (the memo
 - Correction made while writing: the History table first listed three commit hashes copied from a listing taken before the commits were re-authored, so they no longer existed. Replaced with hashes verified to exist (`git cat-file -e`). The table now says explicitly that hashes from earlier notes are stale.
 
 **Tests:** no code changed in this step. Suite unchanged at 170 of 170.
+
+---
+
+## 2026-09-19, Memory step 2: enforcement
+
+**Built**
+- `scripts/memory-check.mjs`: one plain-Node script (runs on Windows) with three modes. `--staged` for the git pre-commit hook, `--hook` for the Claude Code Stop hook (answers with a JSON block decision), `--full` for an audit that also runs the suite and compares it to the facts stated in `docs/PROJECT_MEMORY.md`. `SKIP_MEMORY_CHECK=1` is the loud emergency bypass.
+- `.githooks/pre-commit` runs it on every commit. `package.json` gains `prepare` (sets `core.hooksPath` to `.githooks` on `npm install`, so a fresh clone is protected) and `memory:check`. `.gitattributes` forces LF endings on hook scripts, since CRLF breaks shell scripts on Windows.
+- `.claude/settings.json`: a `Stop` hook that runs the script when Claude finishes a turn, so Claude cannot end a turn with code changes and no memory update. It honours `stop_hook_active`, so it never blocks twice in a row and cannot loop.
+- `tests/memoryCheck.test.ts`: 36 tests in throwaway git repositories, so the enforcement is part of the suite and cannot silently break.
+
+**Rules enforced**
+1. A change to code, tests, migrations, scripts, or config requires changes to both `docs/build-log.md` and `docs/PROJECT_MEMORY.md`.
+2. `docs/build-log.md` is append-only: any removed or altered existing line blocks the commit.
+3. No em dash in an added line of code or docs (also catches new untracked files, for the Stop hook).
+4. `docs/PROJECT_MEMORY.md` stays valid: required sections, a "Last updated" date (must equal today when code changed), a "Tests passing" number, at most 250 lines.
+5. `--full` only: the stated test count equals the real one, no test is failing, and the memory is not older than the newest commit.
+
+**Decisions**
+- "Code" is a positive list of paths, not "everything except docs". The untracked `UI Mockup/` folder (Thomas's HTML and PNG design files, a UI input) and the two design documents must never count as code, block a commit, or trigger the Stop hook. Tests cover this.
+- Escape hatch exists because a hook that cannot be bypassed will eventually be disabled entirely. It prints a loud warning and the memory must be brought up to date straight afterward.
+- Honest limit: the hooks prove the docs were touched and the checkable facts are true. They cannot judge whether the prose is complete. The standing rules and `/wrapup` cover that.
+- A test-only seam: `MEMORY_CHECK_TEST_RESULT` lets the tests supply a canned suite result to `--full` instead of running the whole suite recursively.
+- The tests set `CLAUDE_PROJECT_DIR` to the throwaway repo explicitly. Without that, running the suite inside a Claude session would make the script inspect the real repository instead of the test one.
+
+**Defects found while building it (all fixed before commit)**
+- The script's first live run flagged its own source: the `EM_DASH` constant had been written as the literal character. It now builds it from its code point. The check working on itself on its first run is a useful sign it works.
+- A first version of the audit test failed because temp-repo commits carried today's real date while the test pinned "today" to 2026-01-15. Commit dates are now set deterministically.
+- Patching source through Python heredocs twice corrupted backslash escapes (a `\n` became a raw newline inside a string literal). Both were caught immediately by the syntax check and type check and fixed by direct edit. Process note: do not patch backslash-heavy code through shell heredocs.
+
+**Verification**
+- Mutation check, each restored afterward. Each of these turned the enforcement tests red at the expected tests: code changes no longer requiring docs; build-log deletions undetected; em dashes undetected; the Stop hook's loop guard removed; untracked design inputs counted as code; "Last updated must be today" dropped; the bypass warning made silent; the test-count comparison removed.
+- Enforcement tests: 36 of 36 passing. Full suite figure recorded in `docs/PROJECT_MEMORY.md`.
