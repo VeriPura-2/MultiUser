@@ -1,4 +1,4 @@
-import type { ActionQueueItem, ConsignmentDetail, ConsignmentSummary, DevUser, FullChecklistItem, Me, PartyWorkloadRow, StatusOnlyChecklistItem } from "../src/api/types";
+import type { ActionQueueItem, ConsignmentDetail, ConsignmentSummary, DevUser, FullChecklistItem, IssueDetail, Me, PartyWorkloadRow, StatusOnlyChecklistItem } from "../src/api/types";
 import { mockApi, respond } from "./mockApi";
 
 /**
@@ -171,6 +171,38 @@ export function roadmapApi(
     "GET /me": user,
     "GET /consignments/:id": d,
     "GET /consignments/:id/checklist": { consignmentId: d.id, consignmentStatus: d.status, checklist: data.checklist ?? [] },
+    ...extra,
+  });
+}
+
+// Issue data ------------------------------------------------------------------------------
+
+export function issueDetail(overrides: Partial<IssueDetail> = {}): IssueDetail {
+  return {
+    id: "issue-1",
+    consignmentId: "a1b2c3d4-0000-4000-8000-000000000000",
+    status: "open",
+    problem: "A reference number does not match the source document",
+    expectedValue: "RVX-2287",
+    foundValue: "RVX-2291",
+    responsibleOrgType: "exporter",
+    responsibleOrgName: "Sample Exporter Alpha",
+    checklistItem: { id: "item-9", documentTypeName: "Sample Certificate", category: "Sample Category", requiredBy: "exporter" },
+    sourceDocumentTypeName: "Sample Invoice",
+    createdAt: "2026-09-16T09:30:00.000Z",
+    resolvedAt: null,
+    availableActions: { requestCorrection: true, resolve: true },
+    activity: [],
+    ...overrides,
+  };
+}
+
+/** Mocks one issue, as `user`. The issue can be a function so an action can change what the next read returns. */
+export function issueApi(user: Me, issue: IssueDetail | (() => IssueDetail) = issueDetail(), extra: Record<string, unknown> = {}) {
+  localStorage.setItem("vp-dev-user", user.userId);
+  return mockApi({
+    "GET /me": user,
+    "GET /issues/:id": () => (typeof issue === "function" ? issue() : issue),
     ...extra,
   });
 }

@@ -1,0 +1,70 @@
+/* Issue, from docs/ui-mockups/v2-revised/Issue.html. Inline styles there, classes here. */
+
+.is-state{max-width:560px;}
+.is-back-only{font-family:var(--font-ui); text-align:center; margin-top:14px;}
+.is-page{max-width:1160px;}
+
+.is-top{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;}
+.is-back{font-family:var(--font-ui); font-size:15px; color:var(--charcoal-soft); border-bottom:1px solid var(--line);}
+
+.is-title{display:flex; align-items:center; justify-content:space-between; margin:16px 0 4px; gap:12px; flex-wrap:wrap;}
+.is-title h1{font-size:27px; margin:0; overflow-wrap:anywhere;}
+.is-status{font-family:var(--font-ui); font-size:14px; font-weight:700; text-transform:uppercase; background:var(--red-bg); color:var(--red); padding:5px 12px; border-radius:3px; white-space:nowrap;}
+.is-status.resolved{background:var(--green-bg); color:var(--green);}
+.is-sub{font-family:var(--font-ui); font-size:15px; color:var(--charcoal-soft); margin:0 0 26px;}
+
+/* Stepper */
+.is-stepper{padding:20px 28px; margin-bottom:22px;}
+.is-stepper ol{list-style:none; margin:0; padding:0; display:flex; align-items:center;}
+.is-step{display:flex; align-items:center; flex:1;}
+.is-step:first-child{flex:0 0 auto;}
+.is-line{flex:1; height:2px; background:var(--line); margin:0 8px 18px;}
+.is-line.on{background:var(--solid-red);}
+.is-line.on.resolved{background:var(--solid-green);}
+.is-step-body{display:flex; flex-direction:column; align-items:center; gap:6px;}
+.is-dot{width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--font-ui); font-size:14px; font-weight:700;}
+.is-step.done .is-dot{background:var(--gray); color:var(--ivory);}
+.is-step.current .is-dot{background:var(--solid-red); color:var(--on-solid);}
+.is-step.current.resolved .is-dot{background:var(--solid-green);}
+.is-step.todo .is-dot{background:var(--gray-bg); color:var(--gray);}
+.is-step-label{font-family:var(--font-ui); font-size:14px; color:var(--charcoal-soft); text-align:center;}
+.is-step.current .is-step-label{font-weight:700; color:var(--charcoal);}
+
+/* Body */
+.is-cols{display:grid; grid-template-columns:1fr 300px; gap:22px;}
+.is-main{display:flex; flex-direction:column; gap:18px; min-width:0;}
+.is-aside{display:flex; flex-direction:column; gap:18px;}
+.is-card{padding:20px;}
+.is-card.is-wide{padding:22px 26px;}
+.is-card h2{font-size:18px; margin:0 0 12px;}
+.is-cap{font-family:var(--font-ui); font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--charcoal-soft); margin-bottom:6px;}
+.is-strong{font-weight:700; font-size:17px; overflow-wrap:anywhere;}
+.is-soft{font-family:var(--font-ui); font-size:14px; color:var(--charcoal-soft); margin:2px 0 0;}
+
+.is-problem{font-family:var(--font-ui); font-size:16px; line-height:1.6; margin:0 0 18px; white-space:pre-wrap; overflow-wrap:anywhere;}
+.is-values{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+.is-expected,.is-found{border-radius:6px; padding:14px 16px; font-family:var(--font-ui); font-size:15px; overflow-wrap:anywhere;}
+.is-expected{background:var(--recess);}
+.is-found{background:var(--red-bg);}
+.is-found .is-cap{color:var(--red);}
+.is-source{margin-top:14px; font-family:var(--font-ui); font-size:14px; color:var(--charcoal-soft);}
+
+/* Activity */
+.is-activity{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:16px;}
+.is-activity li{display:flex; gap:12px;}
+.is-avatar{width:30px; height:30px; border-radius:50%; background:var(--avatar-blue); color:var(--on-solid); display:flex; align-items:center; justify-content:center; font-family:var(--font-ui); font-size:14px; font-weight:700; flex-shrink:0;}
+.is-entry{font-family:var(--font-ui); font-size:15px; min-width:0;}
+.is-when{color:var(--charcoal-soft); font-size:14px;}
+.is-what{margin-top:3px; color:var(--charcoal-soft);}
+.is-message{margin-top:6px; padding:8px 12px; background:var(--recess); border-radius:5px; white-space:pre-wrap; overflow-wrap:anywhere;}
+
+.is-actions{display:flex; flex-direction:column; gap:10px;}
+.is-actions .btn{width:100%;}
+
+@media (max-width:1000px){
+  .is-cols{grid-template-columns:1fr;}
+}
+@media (max-width:600px){
+  .is-values{grid-template-columns:1fr;}
+  .is-stepper{padding:16px;}
+}

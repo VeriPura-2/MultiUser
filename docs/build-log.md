@@ -782,3 +782,27 @@ Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-2 (seven numbered steps). T
 - **Not yet checked in a real browser.** The dev servers were stopped after step 2 because the machine was short of memory; the visual comparison of every screen against the PNGs, in both themes, is step 7.
 
 **Step 2's mutation check is still incomplete** (see that entry). The dashboard's tests are unchanged since.
+
+## 2026-09-19, UI-2 step 4: issue
+
+**Built** (`web/src/screens/IssueScreen.tsx`, `web/src/screens/issue/`; no backend change this step)
+- The issue at `/issues/:issueId`, standalone as in the mockup, from `GET /issues/:id`: the document in the title, a status pill, a back link to the consignment's roadmap, the three-stage stepper (Open, Correction requested, Resolved), the Problem card with Expected and Found boxes and the source document, the Activity list, the responsible-party card, and the checklist-item card. Every value comes from the API.
+- **Buttons follow `availableActions` and nothing else.** Request Correction opens a dialog with a message field; an empty or blank message is refused on the screen (and the server refuses it too), and the message is trimmed before it is sent. Mark Resolved asks first in a dialog ("This closes the issue. It cannot be reopened."), because a resolved issue cannot be reopened, and it uses the app's own dialog because a native `confirm()` cannot be driven by browser automation. A resolved issue shows "This issue is resolved." and no buttons.
+- **After an action** the answer (the issue as it now stands) goes straight into the cache, so the stepper, the pill, the buttons and the activity change at once, and everything that depends on the issue is marked stale: that consignment's checklist, the consignment list, the action queue, and party workload. Queries not on screen refetch the next time the dashboard or roadmap mounts, so those screens never show a stale count. Another consignment's checklist is left alone (a test pins that).
+- While a request is in flight the send button and Cancel are disabled and Escape or a backdrop click cannot dismiss the dialog, so a request cannot be sent twice or abandoned half-way. A server refusal keeps the dialog open with the reason and the typed text; cancelling forgets the draft.
+- **The comment box is not rendered** (messaging is deferred), and a test asserts there is no textbox on the page until a dialog opens.
+
+**Deliberate differences from the mockup**
+- "raised by VeriPura AI cross-check" is gone. Nothing records who or what raised an issue apart from the activity list, and AI extraction is out of scope, so the line now says "Attached to a checklist item, opened 2026-09-16" (and "and resolved ..." once it is).
+- No "Guardian Assistant" author or AI avatar; every actor is an initials avatar in the app's blue token. Activity wording is plain ("Raised the issue", "Requested a correction", "Marked the issue resolved"); an action the app does not know is made readable rather than hidden.
+- The responsible-party card shows the organization's name when the responsible type is one of the two trading parties; otherwise it shows the type ("Lab / Cert") and "Not one of the two trading parties". The mockup's "Coordinated via exporter" line is dropped, since nothing in the data says who coordinates.
+- The checklist-item card shows the category (or "Uncategorised") and who it is required from, not "Mandatory".
+- Expected or Found shows "Not stated" if only one of the two exists, and the pair is left out if neither does.
+
+**Verification**
+- 33 new web tests (189 web in twelve files): the header and back link, problem and values in every combination, both cards, the stepper in each status, activity (order, actor, time, message, empty), each button's rule, both dialogs (validation, trimming, success, server refusal, no double send, cancel), the cache and stale-marking after an action, loading, 404 and retry, and the exclusions.
+- **Mutation check, complete:** 29 mutants, one at a time, in the foreground. Twenty-seven were caught first time. Two survived and were closed by tests: the correction button shown when only Resolve is allowed (no test had that combination), and an empty message being sent (the test mocked no route, so a stray call went unrecorded; the route is now mocked and the assertion also checks the field is flagged invalid). Both were re-run and caught.
+- Backend 331, web 189. **Total: 520**, confirmed by `node scripts/memory-check.mjs --full`. `vite build` is clean.
+- Not yet checked in a real browser (step 7 does the visual comparison of every screen).
+
+**Still open from step 2:** its mutation check did not complete (see that entry) and the map tiles carry CARTO's "API KEY REQUIRED" watermark, a decision for Thomas.
