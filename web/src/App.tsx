@@ -7,6 +7,7 @@ import { AdminLayout } from "./layout/AdminLayout";
 import { SidebarLayout } from "./layout/SidebarLayout";
 import { AdminConsole } from "./screens/AdminConsole";
 import { Dashboard } from "./screens/Dashboard";
+import { Intake } from "./screens/Intake";
 import { IssueScreen } from "./screens/IssueScreen";
 import { NotFound } from "./screens/NotFound";
 import { Roadmap } from "./screens/Roadmap";
@@ -37,6 +38,7 @@ export function AppRoutes() {
             </RequireSuperadmin>
           }
         />
+        <Route path="/consignments/new" element={<Intake />} />
         <Route path="/consignments/:consignmentId" element={<Roadmap />} />
         <Route path="/issues/:issueId" element={<IssueScreen />} />
         <Route path="*" element={<NotFound />} />

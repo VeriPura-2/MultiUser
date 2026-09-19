@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "./client";
-import type { ActionQueueResponse, Checklist, ConsignmentDetail, ConsignmentSummary, DevUser, IssueDetail, Me, PartyWorkloadResponse } from "./types";
+import { ApiError, api } from "./client";
+import type { ActionQueueResponse, Checklist, ConsignmentDetail, ConsignmentSummary, DirectoryOrg, DevUser, IssueDetail, Me, PartyWorkloadResponse } from "./types";
 
 /** Query keys in one place, so a mutation can invalidate exactly what it changed. */
 export const keys = {
@@ -12,6 +12,7 @@ export const keys = {
   consignment: (id: string) => ["consignment", id] as const,
   checklist: (id: string) => ["checklist", id] as const,
   issue: (id: string) => ["issue", id] as const,
+  exporters: ["exporters"] as const,
 };
 
 /** Who the app is acting as. Every screen keys off this, so it is fetched once and cached. */
@@ -84,4 +85,33 @@ export function useRequestCorrection(issueId: string) {
 
 export function useResolveIssue(issueId: string) {
   return useIssueAction(issueId, () => api.post<IssueDetail>(`/issues/${encodeURIComponent(issueId)}/resolve`));
+}
+
+/** The approved exporters a purchase order can be addressed to. */
+export function useExporters() {
+  return useQuery({
+    queryKey: keys.exporters,
+    queryFn: () => api.get<{ organizations: DirectoryOrg[] }>("/organizations/exporters").then((r) => r.organizations),
+  });
+}
+
+/** Submits a purchase order. The new consignment appears on the dashboard, so what lists consignments is marked stale. */
+export function useSubmitConsignment() {
+  const client = useQueryClient();
+  const staleLists = () => {
+    void client.invalidateQueries({ queryKey: keys.consignments });
+    void client.invalidateQueries({ queryKey: keys.actionQueue });
+    void client.invalidateQueries({ queryKey: keys.workload });
+  };
+  return useMutation({
+    mutationFn: (form: FormData) => api.postForm<{ consignment: ConsignmentDetail }>("/consignments", form).then((r) => r.consignment),
+    onSuccess: (consignment) => {
+      client.setQueryData(keys.consignment(consignment.id), consignment);
+      staleLists();
+    },
+    // A 502 means the purchase order was saved even though the checklist service was unreachable.
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 502) staleLists();
+    },
+  });
 }

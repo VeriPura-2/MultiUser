@@ -1,0 +1,51 @@
+/* Intake, from docs/ui-mockups/v2-revised/Intake.html. Inline styles there, classes here. */
+
+.in-page{max-width:1150px;}
+.in-top{display:flex; justify-content:flex-end; margin-bottom:12px;}
+.in-title{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:8px; gap:12px; flex-wrap:wrap;}
+.in-title h1{font-size:29px; margin:0;}
+.in-org{font-family:var(--font-ui); font-size:15px; color:var(--charcoal-soft);}
+.in-lead{font-family:var(--font-ui); color:var(--charcoal-soft); font-size:16px; margin:0 0 30px;}
+
+.in-step{padding:22px 26px; margin-bottom:20px;}
+.in-step.done{border-color:var(--green-line); background:var(--green-tint);}
+.in-step-head{display:flex; align-items:center; gap:12px; margin-bottom:16px;}
+.in-step-head h2{font-size:23px; margin:0;}
+.in-num{width:36px; height:36px; border-radius:50%; background:var(--solid-green); color:var(--on-solid); display:flex; align-items:center; justify-content:center; font-family:var(--font-ui); font-weight:700; flex-shrink:0;}
+.in-num.gold{background:var(--gold); color:var(--on-gold);}
+.in-step:not(.done) .in-num:not(.gold){background:var(--gray-bg); color:var(--gray);}
+
+/* Upload zone */
+.in-drop{border:2px dashed var(--line); border-radius:8px; padding:22px; display:flex; align-items:center; gap:16px; font-family:var(--font-ui); color:var(--charcoal-soft); font-size:15px;}
+.in-drop.over{border-color:var(--gold); background:var(--gold-bg);}
+.in-drop.bad{border-color:var(--red-line);}
+.in-drop svg{flex-shrink:0;}
+.in-link{background:none; border:0; padding:0; font:inherit; font-weight:700; color:var(--gold-deep); text-decoration:underline; text-underline-offset:3px;}
+.in-file{display:flex; align-items:center; gap:16px; font-family:var(--font-ui); flex-wrap:wrap;}
+.in-file-text{flex:1; min-width:180px;}
+.in-file-name{font-weight:700; font-size:16px; overflow-wrap:anywhere;}
+.in-file-size{font-size:14px; color:var(--charcoal-soft); margin-top:2px;}
+.in-ready{font-size:14px; font-weight:700; color:var(--green);}
+.in-file-error{margin-top:10px;}
+/* The real file input is visually hidden but stays focusable; show its focus on the zone. */
+.in-step:has(#intake-file:focus-visible) .in-drop,.in-step:has(#intake-file:focus-visible) .in-file{outline:3px solid var(--gold); outline-offset:3px;}
+
+/* Fields */
+.in-fields{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:20px 24px; margin-bottom:24px;}
+.in-field select{font-family:var(--font-serif); font-size:17px; padding:11px 13px; width:100%; border:1px solid var(--line); border-radius:5px; color:var(--charcoal); background:var(--paper);}
+.in-field input[aria-invalid="true"],.in-field select[aria-invalid="true"]{border-color:var(--red);}
+.in-inline-error,.in-inline-note{font-family:var(--font-ui); font-size:15px; color:var(--charcoal-soft); padding:11px 0;}
+.in-inline-error{color:var(--red);}
+.in-error{font-family:var(--font-ui); font-size:15px; color:var(--red); background:var(--red-bg); border:1px solid var(--red-line); border-radius:6px; padding:12px 16px; margin-bottom:18px;}
+
+.in-go{display:inline-block; background:var(--gold); color:var(--on-gold); border:0; font-family:var(--font-ui); font-weight:700; font-size:16px; padding:13px 26px; border-radius:5px;}
+.in-go:disabled{opacity:.6;}
+
+.in-saved{padding:24px 26px; border-color:var(--warn-line); background:var(--warn-bg); font-family:var(--font-ui);}
+.in-saved h2{font-size:21px; margin:0 0 8px;}
+.in-saved p{margin:0 0 16px; font-size:16px;}
+
+@media (max-width:800px){
+  .in-fields{grid-template-columns:1fr;}
+  .in-drop{flex-direction:column; align-items:flex-start;}
+}

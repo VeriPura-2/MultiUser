@@ -206,3 +206,20 @@ export function issueApi(user: Me, issue: IssueDetail | (() => IssueDetail) = is
     ...extra,
   });
 }
+
+// Intake data -----------------------------------------------------------------------------
+
+export const exporterOrgs = [
+  { id: "org-alpha", name: "Sample Exporter Alpha" },
+  { id: "org-bravo", name: "Sample Exporter Bravo" },
+];
+
+/** Mocks the intake form's data, as `user`. */
+export function intakeApi(user: Me, orgs: Array<{ id: string; name: string }> = exporterOrgs, extra: Record<string, unknown> = {}) {
+  localStorage.setItem("vp-dev-user", user.userId);
+  return mockApi({
+    "GET /me": user,
+    "GET /organizations/exporters": { organizations: orgs },
+    ...extra,
+  });
+}

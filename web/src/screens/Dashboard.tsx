@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useActionQueue, useConsignments, usePartyWorkload } from "../api/hooks";
 import { useCurrentUser } from "../auth/CurrentUser";
 import { ErrorState } from "../components/ErrorState";
@@ -43,6 +43,11 @@ export function Dashboard() {
         <h1>Portfolio overview</h1>
         <div className="actions">
           <ThemeToggle />
+          {me.organization?.orgType === "importer" ? (
+            <Link to="/consignments/new" className="new-consignment">
+              + New Consignment
+            </Link>
+          ) : null}
         </div>
       </div>
       <p className="page-sub">{subtitle}</p>
