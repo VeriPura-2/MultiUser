@@ -377,3 +377,36 @@ Stage 2 code was read and reused. Build order follows the prompt: 1 (checklist e
 - Superadmin viewing an org resolves at full visibility on every item (superadmin's rule), so their figures are the org's unfiltered totals.
 
 **Tests:** none yet for this stage (step 4). `tsc --noEmit` clean.
+
+---
+
+## 2026-09-19, Stage 3, Step 4: Tests
+
+**Built**
+- `tests/views.test.ts` (37 tests), driving the three endpoints through the real HTTP routes (`app.inject`) with the dev actor header enabled for the test app. A scenario builder creates a consignment with the stub's four documents (Commercial Invoice, Packing List, Bill of Lading, Export Health Certificate) so each test can set per-role rules, raise issues, and read exactly what each viewer sees.
+
+**Coverage of the prompt's list**
+- Exporter-side Compliance User with a `status_only` rule on Bill of Lading gets status only (asserted with exact equality and by absence of `requiredBy`, `category`, `openIssue`, and of any issue text anywhere in the body) even though an issue exists, while a full-visibility Packing List on the same checklist returns everything, including issue detail and the source document name.
+- A hidden document is absent from the array (and its id and name appear nowhere in the response), and is excluded from both the completeness count and `openIssueCount`.
+- An unrelated third org (and a logistics org that is a real participant but not a party) gets 404 on the checklist, and the body is identical to the 404 for a consignment that does not exist. A malformed id is 404 too.
+- Superadmin sees every item at full visibility with full issue detail even when rules hide or restrict every document for every role.
+- `GET /consignments` returns only consignments where the viewer's org is a party, and all of them for superadmin.
+- A resolved issue is not shown as `openIssue` and does not count. A `correction_requested` issue is shown, with its status, and counts.
+- An importer with consignments against two exporters gets two workload rows, each scoped to its own counterparty, with hand-computed counts.
+- `status_only` and `hidden` items' issues do not contribute to `openIssueCount` on the workload row, and that figure equals the sum of the list endpoint's, so the endpoints cannot disagree.
+
+**Beyond the list:** 401 without an acting user (all three endpoints) and 403 for invited or deactivated users; a hidden source document's name is not revealed while a `status_only` one is; several unresolved issues on one item show the longest-standing and count once; merged two-role permissions flow into the checklist; no rules configured means full view with no action rights; stable ordering; newest-first list; completeness total equals the checklist array length; awaiting-upload counts exclude `status_only` and hidden items even with no issue; workload counts cover active consignments only (finished counterparties still get a zero row); any active user, not only admins, can read workload; `?orgId=` is ignored for non-superadmins and never leaks another org's counterparties; superadmin must choose an org (400 missing or malformed, 404 unknown) and then sees unfiltered totals; the bulk permission resolver agrees with `resolveDocumentPermissions` across a rule matrix (multi-role merge, other-org-type rule, roleless user, superadmin, and with and without a document type filter).
+
+**Verification**
+- Full suite: **170 of 170 passing** (permissions 22, lifecycle 25, audit 9, purchaseOrders 29, webhook 31, issues 17, views 37), run from a freshly dropped and recreated test database. `tsc --noEmit` clean. No em dashes.
+- Mutation check, each restored afterward. These each turned the views suite red at the expected tests: a `status_only` item leaking `requiredBy`; hidden items treated as visible; every user treated as a party; `?orgId=` honoured for ordinary users; resolved issues loaded as open; a hidden source document named anyway; finished consignments counted in workload; `status_only` items counted as awaiting upload; completeness total including hidden items; a non-party getting a 403 instead of a 404.
+- One mutation survived on its own, then was shown to be an *equivalent mutant*, not a test gap: counting `status_only` items in `openIssueCount` changes nothing by itself, because issues are only ever loaded for full-view items, so a `status_only` item never has an issue to count. Two independent guards enforce the same rule. Breaking both together (load issues for `status_only` items and count them) is caught by three tests. The double guard is intentional.
+
+**Open items carried forward**
+- **Issue actions ignore document visibility (a stage 2 behavior that matters more now).** `raiseIssue`, `requestCorrection`, and `resolveIssue` check only that the actor is a party org user. A user whose role sees a document as `hidden` or `status_only` could still act on it if they knew its id. Ids of hidden items are never returned, and ids of `status_only` items are (as `checklistItemId`), so the practical exposure is a `status_only` viewer being able to raise or resolve an issue on a document they only see the status of. Tightening issue authority to a specific role (already noted) should include checking the item's view level.
+- `canEdit`, `canDownload`, and `canApprove` are returned but not yet enforced anywhere, because document upload, download, and approval do not exist yet. When they are built they must call the permission engine.
+- The list is not paginated. `expectedValue` and `foundValue` on an issue are free text and may carry content from a document the viewer cannot see (cannot be detected; see step 1).
+- Real sign-in still replaces the `X-Acting-User-Id` stand-in. The three read endpoints now share that switch.
+- The stage 2 items (unconfirmed contract with core, no automatic retry, `audit_log` not immutable, dev-only `npm audit` findings) are unchanged.
+
+**Stage 3 status:** complete. The slice described in the prompt is built: an importer can submit a PO, the platform round-trips with VeriPura core (stubbed) for a checklist, discrepancies are first-class issues worked open, correction requested, resolved, every party sees the checklist and issues filtered by the permission matrix, and an importer running consignments across several exporters has a working per-counterparty view. Document upload, automated validation, and the messaging layer remain out of scope, as the prompt says.

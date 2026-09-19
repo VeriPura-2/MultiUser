@@ -50,6 +50,14 @@ call back `POST /webhooks/veripura-core/checklist`, signed with `X-VeriPura-Sign
 returns 401 until real sign-in exists, unless `ALLOW_DEV_ACTOR_HEADER=true` (sandbox only, trusts
 an `X-Acting-User-Id` header). See `.env.example` for every variable.
 
+## Read views (role-scoped)
+
+With an acting user, three read endpoints return only what that user's role may see:
+
+- `GET /consignments/:consignmentId/checklist`: hidden documents omitted, `status_only` ones show status only, full ones show everything including the longest-standing open issue. A user who is not a party gets the same 404 as for a missing consignment.
+- `GET /consignments`: the org's consignments, each with checklist completeness and an open issue count computed over what the viewer may see.
+- `GET /parties/workload`: the org's consignments grouped by counterparty (`?orgId=` is for superadmin only and is ignored for everyone else).
+
 ## Schema changes
 
 Edit `src/db/schema.ts`, then:
@@ -70,7 +78,7 @@ src/audit/       recordAudit helper
 src/services/    lifecycle, consignments, checklist, issues (framework-agnostic)
 src/core/        VeriPura core contract: client interface (stub and live), signing, send
 src/storage/     file storage interface (local disk default, swappable)
-src/http/        thin Fastify layer: POST /webhooks/veripura-core/checklist, POST /purchase-orders
+src/http/        thin Fastify layer: webhook, POST /purchase-orders, and the read views below
 scripts/         seed
 tests/           Vitest suite
 docs/build-log.md  append-only record of what was built and why
