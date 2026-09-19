@@ -468,3 +468,24 @@ project's own memory, and the memory cannot fall behind. Four steps: 1 (the memo
 **Verification**
 - Mutation check, each restored afterward. Each of these turned the enforcement tests red at the expected tests: code changes no longer requiring docs; build-log deletions undetected; em dashes undetected; the Stop hook's loop guard removed; untracked design inputs counted as code; "Last updated must be today" dropped; the bypass warning made silent; the test-count comparison removed.
 - Enforcement tests: 36 of 36 passing. Full suite figure recorded in `docs/PROJECT_MEMORY.md`.
+
+---
+
+## 2026-09-19, Memory step 3: restart and wrap-up commands
+
+**Built**
+- `.claude/commands/pickup.md` (`/pickup`): reads the source material the memory points to, checks git (in sync with `origin/main`, local noreply email, hooks path), brings up Docker and the sandbox if needed, runs `typecheck` and `memory:check --full` (which runs the whole suite), looks for drift between the memory and reality, and reports with a recommended next step. It changes nothing except starting the sandbox. Named `pickup` because `/resume` is a built-in command.
+- `.claude/commands/wrapup.md` (`/wrapup`): the end-of-session ritual. Append the build log, update the memory, verify with `memory:check --full`, commit explicit paths, push, confirm local equals remote.
+- `resume.ps1` (repo root) and a `veripura` function in the PowerShell profile (`C:\Users\tomso\OneDrive\Documentos\WindowsPowerShell\profile.ps1`, all-hosts, a new file, added between marker comments so it is easy to find and remove). Typing `veripura` from any folder changes into the project and runs `claude '/pickup'`. The function is inline rather than calling `resume.ps1`, so it works even if script execution is restricted (the current policy is `RemoteSigned`, which would also allow it).
+- README "Restarting the project" section.
+- Claude's own memory reduced to thin pointers: a new one for this project's folder (none existed, which is why a session started here would have found nothing) and the two older notes in the tower-demo memory merged into one pointer. The repo is the single source of truth, so there is nothing to keep in sync.
+- `docs/veripura-cli-ui-prompts.md` (Thomas's UI-1 and UI-2 prompts) is now a tracked specification and is referenced from `docs/PROJECT_MEMORY.md`. The mockup folders (`UI Mockup/`, `docs/ui-mockups/`) remain untracked design inputs, pending Thomas's say-so.
+
+**Decisions**
+- The `veripura` profile edit is the only change outside the repo and Claude's memory folders. The profile file did not exist, so nothing was overwritten or needed a backup; if it existed the installer copies it to `profile.ps1.bak-before-veripura` first and never adds the block twice.
+- The `/pickup` step that checks the local git email exists because the first push to GitHub was refused over exactly that (see the earlier "commit identity" entry).
+
+**Finding: the Stop hook works, and it hijacks a dirty tree**
+- A first cold-start test (`claude -p` in this folder, asking memory-only questions) did not return the memory recital. It returned a `/wrapup` attempt. Cause: the session finished its answer while the tree held uncommitted new code and no doc updates, so the Stop hook blocked the stop and pushed the session into wrapping up (it had no tool permissions, so it stopped and reported). Nothing was changed, and HEAD was unaffected. This is the hook doing its job end to end, and it also means a test of a cold start must be run against a clean tree. Recorded in the memory's Gotchas.
+
+**Tests:** no source changed in this step. Suite unchanged at 206 of 206 (verified by `memory:check --full` in step 2).

@@ -8,6 +8,21 @@ Stack: TypeScript, Node 22+, Postgres 17, Drizzle ORM, Vitest.
 
 Everything runs against a **local sandbox only**. Nothing here deploys anywhere.
 
+## Restarting the project
+
+The project keeps its own memory in the repo, so a fresh Claude session can pick up exactly where
+the last one stopped.
+
+- **From anywhere:** type `veripura`. (It is a small function in the PowerShell profile that opens
+  Claude in this folder and runs `/pickup`.)
+- **From this folder:** run `.\resume.ps1`, or run `claude` and then type `/pickup`.
+- **Before stopping:** run `/wrapup`. It updates the memory, verifies, commits, and pushes.
+
+`/pickup` reads `docs/PROJECT_MEMORY.md` (standing rules, state, history, open items), checks git
+and the sandbox, runs the tests, and reports any drift between the memory and reality. A git
+pre-commit hook and a Claude Code Stop hook stop the memory falling behind. Both are described in
+`docs/PROJECT_MEMORY.md`. A new clone gets the git hook from `npm install`.
+
 ## Sandbox
 
 Prerequisites: Node 22+, Docker Desktop running.
