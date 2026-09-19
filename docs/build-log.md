@@ -357,3 +357,23 @@ Stage 2 code was read and reused. Build order follows the prompt: 1 (checklist e
 - Not paginated: one org's consignments are expected to be few during the trial. Add paging before that stops being true.
 
 **Tests:** none yet for this stage (step 4). `tsc --noEmit` clean.
+
+---
+
+## 2026-09-19, Stage 3, Step 3: `GET /parties/workload`
+
+**Built**
+- `getPartyWorkload(actingUser, { orgId? })` in `src/services/consignmentViews.ts`, and the route in `src/http/views.ts`. Response: `{ orgId, counterparties: [{ counterpartyOrgId, counterpartyOrgName, activeConsignmentCount, documentsAwaitingUploadCount, openIssueCount }] }`.
+
+**Behavior**
+- Groups the viewer's org's consignments by the other party (exporter when the org is the importer, importer when it is the exporter), one row per counterparty, sorted by name.
+- **Authorization:** any active user of an org sees their own org's workload (not superadmin-only, as the prompt requires). Superadmin has no org and must pass `?orgId=`; missing or malformed is a 400, an unknown org is a 404. For everyone else `orgId` is **ignored**, so it cannot be used to look at another org, and passing it changes nothing.
+- **Permission filtering, same as the other two endpoints:** only checklist items the viewer can see at full view contribute to `documentsAwaitingUploadCount` and `openIssueCount`. Issues are counted per item (an item with two open issues counts once), the same definition as `openIssueCount` on `GET /consignments`, so the two endpoints cannot disagree.
+- No "overdue" column, as the prompt directs; there is no deadline concept to base one on.
+
+**Decisions not fully specified in the prompt**
+- **Superadmin without `orgId` is a 400**, not "all orgs combined". "By counterparty" only means something relative to one org, and the prompt describes `orgId` as how superadmin views an org's workload.
+- **The two counts cover active consignments only** (status not completed or cancelled), the same set as `activeConsignmentCount`. The prompt says both counts use the same permission-filtered visibility but does not say which consignments they span; a cancelled consignment's leftover awaiting uploads and open issues are not anyone's outstanding workload. `GET /consignments` still shows those issues per consignment. A counterparty whose consignments are all finished still gets a row, with zeros.
+- Superadmin viewing an org resolves at full visibility on every item (superadmin's rule), so their figures are the org's unfiltered totals.
+
+**Tests:** none yet for this stage (step 4). `tsc --noEmit` clean.

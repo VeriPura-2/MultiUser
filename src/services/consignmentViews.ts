@@ -13,7 +13,7 @@ import {
   type Issue,
   type OrgType,
 } from "../db/schema.js";
-import { NotFoundError } from "../errors.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 import { createPermissionResolver, type DocumentPermissions, type PermissionResolver } from "../permissions/engine.js";
 import { isSuperadmin, type UserRef } from "../types.js";
 import { loadActiveActor } from "./actors.js";
@@ -346,5 +346,112 @@ export async function listConsignments(actingUser: UserRef): Promise<Consignment
         openIssueCount: totals.openIssueItems,
       };
     });
+  }, READ_ONLY_SNAPSHOT);
+}
+
+// ---------------------------------------------------------------------------
+// Endpoint 3: workload by counterparty
+// ---------------------------------------------------------------------------
+
+export interface PartyWorkloadRow {
+  counterpartyOrgId: string;
+  counterpartyOrgName: string;
+  /** Consignments with this counterparty whose status is not completed or cancelled. */
+  activeConsignmentCount: number;
+  /** Full-view checklist items still awaiting upload, across the active consignments. */
+  documentsAwaitingUploadCount: number;
+  /** Full-view items with an open or correction_requested issue, across the active consignments. */
+  openIssueCount: number;
+}
+
+export interface PartyWorkloadResponse {
+  /** The organization whose workload this is. */
+  orgId: string;
+  counterparties: PartyWorkloadRow[];
+}
+
+const FINISHED_STATUSES: readonly ConsignmentStatus[] = ["completed", "cancelled"];
+
+/**
+ * Where each relationship stands, grouped by the other party on each consignment: the exporter
+ * when the viewer's org is the importer, the importer when it is the exporter. It is a working
+ * operator view, so any active user of an org may read their own org's workload.
+ *
+ * Superadmin has no org and must name one with `orgId`; other users always get their own org and
+ * any `orgId` they pass is ignored, so it cannot be used to look at another org.
+ *
+ * Counts use the same visibility filtering as the consignment views: only items the viewer can
+ * see at full view contribute, and issues are counted per item, the same definition as
+ * `openIssueCount` on the list endpoint. There is deliberately no "overdue" figure, since no
+ * deadline exists on a consignment or checklist item yet.
+ *
+ * Decision (the prompt left the scope of the two counts open): they cover only active
+ * consignments. A cancelled consignment's leftover awaiting uploads are not anyone's workload.
+ * A counterparty whose consignments are all finished still gets a row, with zeros.
+ */
+export async function getPartyWorkload(
+  actingUser: UserRef,
+  options: { orgId?: string } = {},
+): Promise<PartyWorkloadResponse> {
+  return getDb().transaction(async (tx) => {
+    const actor = await loadActiveActor(actingUser, tx);
+
+    let orgId: string;
+    if (isSuperadmin(actor)) {
+      if (!options.orgId || !UUID_PATTERN.test(options.orgId)) {
+        throw new ValidationError("Superadmin must pass a valid orgId to choose whose workload to view");
+      }
+      const [org] = await tx.select({ id: organizations.id }).from(organizations).where(eq(organizations.id, options.orgId));
+      if (!org) throw new NotFoundError("Organization not found");
+      orgId = org.id;
+    } else {
+      orgId = actor.organization_id!;
+    }
+
+    const rows = await tx
+      .select()
+      .from(consignments)
+      .where(or(eq(consignments.importer_org_id, orgId), eq(consignments.exporter_org_id, orgId)));
+
+    const counterpartyOf = (c: Consignment) => (c.importer_org_id === orgId ? c.exporter_org_id : c.importer_org_id);
+    const active = rows.filter((c) => !FINISHED_STATUSES.includes(c.status));
+
+    const counterpartyIds = [...new Set(rows.map(counterpartyOf))];
+    if (counterpartyIds.length === 0) return { orgId, counterparties: [] };
+    const orgs = await tx
+      .select({ id: organizations.id, name: organizations.name })
+      .from(organizations)
+      .where(inArray(organizations.id, counterpartyIds));
+    const nameOf = new Map(orgs.map((o) => [o.id, o.name]));
+
+    const resolve = await createPermissionResolver(actor, tx);
+    const items = await loadResolvedItems(tx, active.map((c) => c.id), resolve);
+    const openIssues = await loadUnresolvedIssues(tx, items.filter(isFullView).map((i) => i.id));
+    const byConsignment = groupByConsignment(items);
+
+    const perCounterparty = new Map<string, PartyWorkloadRow>(
+      counterpartyIds.map((id) => [
+        id,
+        {
+          counterpartyOrgId: id,
+          counterpartyOrgName: nameOf.get(id) ?? "",
+          activeConsignmentCount: 0,
+          documentsAwaitingUploadCount: 0,
+          openIssueCount: 0,
+        },
+      ]),
+    );
+    for (const c of active) {
+      const row = perCounterparty.get(counterpartyOf(c))!;
+      const totals = totalsFor(byConsignment.get(c.id) ?? [], openIssues);
+      row.activeConsignmentCount += 1;
+      row.documentsAwaitingUploadCount += totals.awaitingUpload;
+      row.openIssueCount += totals.openIssueItems;
+    }
+
+    const counterparties = [...perCounterparty.values()].sort(
+      (a, b) => a.counterpartyOrgName.localeCompare(b.counterpartyOrgName) || a.counterpartyOrgId.localeCompare(b.counterpartyOrgId),
+    );
+    return { orgId, counterparties };
   }, READ_ONLY_SNAPSHOT);
 }
