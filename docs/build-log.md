@@ -129,3 +129,9 @@ Append-only. One dated entry per numbered build step. Never rewrite earlier entr
 - No git remote configured for this repo; see stage-end note below.
 
 **Stage 1 status:** complete. Steps 1 to 5 built and tested. No HTTP layer or webhook code, per the prompt.
+
+---
+
+## 2026-09-19, Stage 1, correction to the Step 5 entry
+
+The Step 5 entry gave per-file test counts of 22 / 29 / 5. The verified counts are **permissions 22, lifecycle 25, audit 9** (audit counts each parameterized malformed-action case). The total of 56 passing was correct and is unchanged.
