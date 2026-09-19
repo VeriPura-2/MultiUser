@@ -162,3 +162,29 @@ export async function postChecklist(
     payload: raw,
   });
 }
+
+/**
+ * A consignment carrying the stub's four checklist documents, addressable by name, with the
+ * parties and their admins. The shared starting point for tests of the read views.
+ */
+export async function scenario(parties?: TradeParties, overrides: Parameters<typeof submitTestPO>[1] = {}) {
+  const p = parties ?? (await createTradeParties());
+  const consignment = await submitTestPO(p, overrides);
+  const items = await checklistItemsOf(consignment);
+  const types = await getDb().select().from(document_types);
+  const doc = (name: string) => {
+    const type = types.find((t) => t.name === name)!;
+    return { type, item: items.find((i) => i.document_type_id === type.id)! };
+  };
+  return {
+    parties: p,
+    consignment,
+    invoice: doc("Commercial Invoice"),
+    packing: doc("Packing List"),
+    bol: doc("Bill of Lading"),
+    cert: doc("Export Health Certificate"),
+    importerAdmin: p.importer.admin,
+    exporterAdmin: p.exporter.admin,
+  };
+}
+export type Scenario = Awaited<ReturnType<typeof scenario>>;

@@ -570,3 +570,26 @@ Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-1 (eight numbered items). E
 - The route `/consignments/:consignmentId` sits beside `/consignments/:consignmentId/checklist`. A test confirms both resolve.
 
 **Tests:** 6 new in `tests/consignmentDetail.test.ts`. Mutation-checked: removing the party check (a stranger could read) and adding an extra field are each caught. Full suite: **239 of 239**.
+
+---
+
+## 2026-09-19, UI-1 step 4: `GET /action-queue`
+
+**Built**
+- `getActionQueue` in `src/services/consignmentViews.ts` and the route in `src/http/views.ts`. Returns `{ orgId, items: [{ consignmentId, consignmentLabel, documentTypeName, requiredBy, status, issueId, responsibleOrgType, actionableByMyOrg }] }`.
+- A shared helper `resolveViewedOrg` (own org for ordinary users, `?orgId=` for superadmin), extracted from the workload endpoint so the two cannot diverge. The 37 existing view tests passed unchanged after the extraction.
+- `scenario()` in `tests/helpers.ts`: a consignment with the stub's four documents addressable by name, shared by the new tests.
+
+**Behavior**
+- Items across the org's live consignments (not completed, not cancelled), with status `flagged` or `awaiting_upload` only. Pending and verified items are not action items.
+- Visibility is the checklist's: hidden items are omitted; full items carry `issueId` (the longest-standing unresolved issue) and `responsibleOrgType`.
+- `actionableByMyOrg`: for `awaiting_upload`, the viewed org's type equals `requiredBy`; for `flagged`, it equals the issue's `responsibleOrgType`. For superadmin viewing an org, "my org" is the org being viewed.
+- Order: flagged first, then `awaiting_upload`, then newest consignment first, then document name. No due dates, no "overdue".
+
+**Decisions the prompt left open**
+- **`status_only` items have `requiredBy` null and are never actionable.** The prompt says status_only items appear "with status only and null issueId and null responsibleOrgType". `requiredBy` is not in that list, but the checklist endpoint withholds `requiredBy` from a status_only viewer, so returning it here would leak what the checklist hides. And `actionableByMyOrg` cannot be computed for such an item without using that hidden value, so it is false. A test asserts the item is sealed and its issue text appears nowhere in the response.
+- **`consignmentLabel` is `"<commodity>, <origin> to <destination>"`** (for example "Frozen beef, BR to GB"). Consignments have no reference number or name to show, and the prompt does not define the label.
+- **Superadmin must pass `?orgId=`** (400 if missing or malformed, 404 if unknown), consistent with the workload endpoint. An ordinary user's `orgId` is ignored so it cannot be used to look at another org.
+- A `flagged` item with no unresolved issue (a data anomaly) is returned as flagged with a null issue and is not actionable, rather than being dropped.
+
+**Tests:** 16 new in `tests/actionQueue.test.ts`. Mutation-checked, each caught: `requiredBy` leaking on a status_only item; hidden items included; the flagged actionable rule using `requiredBy`; wrong sort order; finished consignments included; status_only items marked actionable; an ordinary user's `orgId` honoured. Full suite: **255 of 255**.

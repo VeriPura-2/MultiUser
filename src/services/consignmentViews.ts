@@ -349,6 +349,29 @@ export async function listConsignments(actingUser: UserRef): Promise<Consignment
   }, READ_ONLY_SNAPSHOT);
 }
 
+/**
+ * Which organization a per-org view (workload, action queue) is about. An ordinary user always
+ * gets their own org, and any `orgId` they pass is ignored so it cannot be used to look at
+ * another org. Superadmin has no org and must name one: 400 if missing or malformed, 404 if
+ * unknown.
+ */
+async function resolveViewedOrg(
+  tx: DbExecutor,
+  actor: UserRef,
+  requestedOrgId: string | undefined,
+): Promise<{ orgId: string; orgType: OrgType }> {
+  const orgId = isSuperadmin(actor) ? requestedOrgId : actor.organization_id;
+  if (isSuperadmin(actor) && (!orgId || !UUID_PATTERN.test(orgId))) {
+    throw new ValidationError("Superadmin must pass a valid orgId to choose whose view to see");
+  }
+  const [org] = await tx
+    .select({ id: organizations.id, orgType: organizations.org_type })
+    .from(organizations)
+    .where(eq(organizations.id, orgId!));
+  if (!org) throw new NotFoundError("Organization not found");
+  return { orgId: org.id, orgType: org.orgType };
+}
+
 // ---------------------------------------------------------------------------
 // Endpoint 3: workload by counterparty
 // ---------------------------------------------------------------------------
@@ -396,17 +419,7 @@ export async function getPartyWorkload(
   return getDb().transaction(async (tx) => {
     const actor = await loadActiveActor(actingUser, tx);
 
-    let orgId: string;
-    if (isSuperadmin(actor)) {
-      if (!options.orgId || !UUID_PATTERN.test(options.orgId)) {
-        throw new ValidationError("Superadmin must pass a valid orgId to choose whose workload to view");
-      }
-      const [org] = await tx.select({ id: organizations.id }).from(organizations).where(eq(organizations.id, options.orgId));
-      if (!org) throw new NotFoundError("Organization not found");
-      orgId = org.id;
-    } else {
-      orgId = actor.organization_id!;
-    }
+    const { orgId } = await resolveViewedOrg(tx, actor, options.orgId);
 
     const rows = await tx
       .select()
@@ -502,5 +515,113 @@ export async function getConsignmentDetail(consignmentId: string, actingUser: Us
       exporterOrg: { id: c.exporter_org_id, name: nameOf.get(c.exporter_org_id) ?? "" },
       createdAt: c.created_at,
     };
+  }, READ_ONLY_SNAPSHOT);
+}
+
+// ---------------------------------------------------------------------------
+// UI-1: the action queue
+// ---------------------------------------------------------------------------
+
+export interface ActionQueueItem {
+  consignmentId: string;
+  /** "<commodity>, <origin> to <destination>". Consignments carry no reference number to show. */
+  consignmentLabel: string;
+  documentTypeName: string;
+  /** Null for a status_only item: who must supply it is not something that viewer may see. */
+  requiredBy: ChecklistRequiredBy | null;
+  status: "flagged" | "awaiting_upload";
+  /** The longest-standing unresolved issue. Null for a status_only item. */
+  issueId: string | null;
+  responsibleOrgType: OrgType | null;
+  /** True when the viewed org is the one that has to act. Always false for a status_only item. */
+  actionableByMyOrg: boolean;
+}
+
+export interface ActionQueueResponse {
+  /** The organization this queue is for. */
+  orgId: string;
+  items: ActionQueueItem[];
+}
+
+/**
+ * What needs doing across an organization's live consignments (not completed, not cancelled):
+ * documents awaiting upload and documents with an unresolved issue.
+ *
+ * Visibility is exactly the checklist's. Hidden items are omitted. A status_only item appears
+ * with its status only: no requiredBy, no issue, and never actionable, because acting on it
+ * would require knowing what the viewer is not allowed to know. Full items carry issue fields.
+ *
+ * actionableByMyOrg: for an awaiting_upload item, the viewed org's type equals requiredBy; for a
+ * flagged item, it equals the issue's responsibleOrgType. For superadmin viewing an org, "my
+ * org" is the org being viewed.
+ *
+ * Order: flagged first, then awaiting_upload, then newest consignment first, then document
+ * name. There are no due dates and no "overdue", because no deadline concept exists yet.
+ */
+export async function getActionQueue(
+  actingUser: UserRef,
+  options: { orgId?: string } = {},
+): Promise<ActionQueueResponse> {
+  return getDb().transaction(async (tx) => {
+    const actor = await loadActiveActor(actingUser, tx);
+    const { orgId, orgType } = await resolveViewedOrg(tx, actor, options.orgId);
+
+    const live = (
+      await tx
+        .select()
+        .from(consignments)
+        .where(or(eq(consignments.importer_org_id, orgId), eq(consignments.exporter_org_id, orgId)))
+        .orderBy(desc(consignments.created_at), asc(consignments.id))
+    ).filter((c) => !FINISHED_STATUSES.includes(c.status));
+
+    const resolve = await createPermissionResolver(actor, tx);
+    const items = await loadResolvedItems(tx, live.map((c) => c.id), resolve);
+    const openIssues = await loadUnresolvedIssues(tx, items.filter(isFullView).map((i) => i.id));
+    const consignmentRank = new Map(live.map((c, index) => [c.id, index]));
+    const consignmentById = new Map(live.map((c) => [c.id, c]));
+
+    const queue: ActionQueueItem[] = [];
+    for (const item of items) {
+      if (item.status !== "flagged" && item.status !== "awaiting_upload") continue;
+      if (!isVisible(item)) continue;
+      const consignment = consignmentById.get(item.consignmentId)!;
+      const consignmentLabel = `${consignment.commodity}, ${consignment.origin_country} to ${consignment.destination_country}`;
+
+      if (!isFullView(item)) {
+        queue.push({
+          consignmentId: item.consignmentId,
+          consignmentLabel,
+          documentTypeName: item.documentTypeName,
+          requiredBy: null,
+          status: item.status,
+          issueId: null,
+          responsibleOrgType: null,
+          actionableByMyOrg: false,
+        });
+        continue;
+      }
+
+      const issue = openIssues.get(item.id);
+      queue.push({
+        consignmentId: item.consignmentId,
+        consignmentLabel,
+        documentTypeName: item.documentTypeName,
+        requiredBy: item.requiredBy,
+        status: item.status,
+        issueId: issue?.id ?? null,
+        responsibleOrgType: issue?.responsible_org_type ?? null,
+        actionableByMyOrg:
+          item.status === "awaiting_upload" ? item.requiredBy === orgType : issue?.responsible_org_type === orgType,
+      });
+    }
+
+    const statusRank = (s: ActionQueueItem["status"]) => (s === "flagged" ? 0 : 1);
+    queue.sort(
+      (a, b) =>
+        statusRank(a.status) - statusRank(b.status) ||
+        consignmentRank.get(a.consignmentId)! - consignmentRank.get(b.consignmentId)! ||
+        a.documentTypeName.localeCompare(b.documentTypeName),
+    );
+    return { orgId, items: queue };
   }, READ_ONLY_SNAPSHOT);
 }

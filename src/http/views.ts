@@ -1,5 +1,11 @@
 import type { FastifyPluginAsync } from "fastify";
-import { getConsignmentChecklist, getConsignmentDetail, getPartyWorkload, listConsignments } from "../services/consignmentViews.js";
+import {
+  getActionQueue,
+  getConsignmentChecklist,
+  getConsignmentDetail,
+  getPartyWorkload,
+  listConsignments,
+} from "../services/consignmentViews.js";
 import { resolveActingUser, type ActorOptions } from "./actor.js";
 
 /**
@@ -22,6 +28,12 @@ export const viewRoutes: FastifyPluginAsync<ActorOptions> = async (app, options)
     const actingUser = await actorFor(request);
     if (!actingUser) return reply.code(401).send({ error: "unauthenticated" });
     return getPartyWorkload(actingUser, { orgId: request.query.orgId });
+  });
+
+  app.get<{ Querystring: { orgId?: string } }>("/action-queue", async (request, reply) => {
+    const actingUser = await actorFor(request);
+    if (!actingUser) return reply.code(401).send({ error: "unauthenticated" });
+    return getActionQueue(actingUser, { orgId: request.query.orgId });
   });
 
   app.get<{ Params: { consignmentId: string } }>("/consignments/:consignmentId", async (request, reply) => {
