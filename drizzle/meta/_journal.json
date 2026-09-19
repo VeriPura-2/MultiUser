@@ -15,6 +15,13 @@
       "when": 1789805534309,
       "tag": "0001_stage2_consignments_checklist_issues",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789843291014,
+      "tag": "0002_vessel_tracking_identifiers_and_positions",
+      "breakpoints": true
     }
   ]
 }

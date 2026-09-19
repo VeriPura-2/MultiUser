@@ -32,7 +32,7 @@ describe("GET /consignments: origin and destination (dashboard route column)", (
       expect(Object.keys(c!).sort()).toEqual(
         [
           "checklistCompleteness", "commodity", "counterpartOrgName", "destinationCountry", "exporterOrgName",
-          "id", "importerOrgName", "openIssueCount", "originCountry", "status",
+          "id", "importerOrgName", "openIssueCount", "originCountry", "status", "vesselImo", "vesselMmsi", "vesselName",
         ].sort(),
       );
     }

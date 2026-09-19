@@ -7,6 +7,7 @@ import { PermissionDeniedError, ValidationError } from "../errors.js";
 import { loadActiveActor } from "../services/actors.js";
 import { getConsignmentDetail } from "../services/consignmentViews.js";
 import { submitPurchaseOrder } from "../services/consignments.js";
+import { updateConsignmentVessel } from "../services/vessel.js";
 import { isSuperadmin } from "../types.js";
 import { UUID, resolveActingUser, type ActorOptions } from "./actor.js";
 
@@ -18,8 +19,8 @@ const TEXT_FIELDS = ["commodity", "originCountry", "destinationCountry"] as cons
 /**
  * POST /consignments (multipart/form-data): the UI's purchase order form.
  *
- * Fields: exporterOrgId, commodity, originCountry, destinationCountry, optional hsCode, and one
- * `file`. The importer is derived from the acting user's organization, so a client cannot submit
+ * Fields: exporterOrgId, commodity, originCountry, destinationCountry, optional hsCode, optional
+ * vesselImo, vesselMmsi and vesselName (422 if malformed), and one `file`. The importer is derived from the acting user's organization, so a client cannot submit
  * on another importer's behalf; a submitted `importerOrgId` is ignored for ordinary users.
  * Superadmin has no organization and must name the importer with `importerOrgId`.
  *
@@ -76,10 +77,27 @@ export const consignmentRoutes: FastifyPluginAsync<ActorOptions> = async (app, o
       hsCode: fields.hsCode ?? null,
       originCountry: fields.originCountry!,
       destinationCountry: fields.destinationCountry!,
+      vesselImo: fields.vesselImo,
+      vesselMmsi: fields.vesselMmsi,
+      vesselName: fields.vesselName,
       fileBuffer: file.buffer,
       fileName: file.name || "purchase-order",
       actingUser: actor,
     });
     return reply.code(201).send({ consignment: await getConsignmentDetail(consignment.id, actor) });
+  });
+
+  /**
+   * PATCH /consignments/:id/vessel (JSON): set or clear the vessel identifiers. Send any of
+   * vesselImo, vesselMmsi, vesselName; a field that is absent is left alone, and null or blank
+   * clears it. Only the importing organization (or superadmin) may. 422 for a malformed value,
+   * 403 for the exporter, 404 for anyone who is not a party. Answers with the consignment's detail.
+   */
+  app.patch<{ Params: { consignmentId: string } }>("/consignments/:consignmentId/vessel", async (request, reply) => {
+    const actingUser = await resolveActingUser(request, options.allowDevActorHeader ?? false);
+    if (!actingUser) return reply.code(401).send({ error: "unauthenticated" });
+    const body = request.body;
+    if (typeof body !== "object" || body === null || Array.isArray(body)) throw new ValidationError("Body must be a JSON object");
+    return updateConsignmentVessel({ consignmentId: request.params.consignmentId, actingUser, changes: body as Record<string, unknown> });
   });
 };

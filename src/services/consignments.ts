@@ -4,6 +4,7 @@ import { sendToVeriPuraCore } from "../core/send.js";
 import { getDb } from "../db/client.js";
 import { consignments, organizations, purchase_orders, type Consignment } from "../db/schema.js";
 import { PermissionDeniedError, ValidationError } from "../errors.js";
+import { vesselFieldsForCreate } from "../tracking/identifiers.js";
 import { uploadFile } from "../storage/fileStorage.js";
 import { isSuperadmin, type UserRef } from "../types.js";
 import { loadActiveActor } from "./actors.js";
@@ -18,6 +19,10 @@ export interface SubmitPurchaseOrderInput {
   destinationCountry: string;
   fileBuffer: Buffer;
   fileName: string;
+  /** Optional vessel identifiers, as typed. Checked (422) before anything is uploaded. */
+  vesselImo?: unknown;
+  vesselMmsi?: unknown;
+  vesselName?: unknown;
   actingUser: UserRef;
 }
 
@@ -55,6 +60,7 @@ export async function submitPurchaseOrder(input: SubmitPurchaseOrderInput): Prom
   const destinationCountry = requiredText(input.destinationCountry, "destinationCountry");
   const fileName = requiredText(input.fileName, "fileName");
   const hsCode = input.hsCode?.trim() || null;
+  const vessel = vesselFieldsForCreate(input);
   if (!Buffer.isBuffer(input.fileBuffer) || input.fileBuffer.length === 0) {
     throw new ValidationError("The purchase order file is empty");
   }
@@ -85,6 +91,9 @@ export async function submitPurchaseOrder(input: SubmitPurchaseOrderInput): Prom
         hs_code: hsCode,
         origin_country: originCountry,
         destination_country: destinationCountry,
+        vessel_imo: vessel.vesselImo,
+        vessel_mmsi: vessel.vesselMmsi,
+        vessel_name: vessel.vesselName,
         created_by_user_id: actor.id,
       })
       .returning();
@@ -105,6 +114,9 @@ export async function submitPurchaseOrder(input: SubmitPurchaseOrderInput): Prom
           commodity,
           purchase_order_id: po!.id,
           file_name: fileName,
+          ...(vessel.vesselImo || vessel.vesselMmsi || vessel.vesselName
+            ? { vessel_imo: vessel.vesselImo, vessel_mmsi: vessel.vesselMmsi, vessel_name: vessel.vesselName }
+            : {}),
         },
       },
       tx,

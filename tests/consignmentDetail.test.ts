@@ -24,6 +24,10 @@ describe("GET /consignments/:consignmentId", () => {
       hsCode: "0202.30",
       originCountry: "BR",
       destinationCountry: "GB",
+      // Added by the tracking stage: null until someone enters the vessel.
+      vesselImo: null,
+      vesselMmsi: null,
+      vesselName: null,
       importerOrg: { id: parties.importer.org.id, name: parties.importer.org.name },
       exporterOrg: { id: parties.exporter.org.id, name: parties.exporter.org.name },
       createdAt: expect.any(String),

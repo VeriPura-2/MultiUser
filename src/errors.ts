@@ -32,3 +32,11 @@ export class ValidationError extends Error {
     this.name = "ValidationError";
   }
 }
+
+/** The request is well formed but its content is not acceptable, for example a bad vessel identifier. Answered with 422. */
+export class UnprocessableEntityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnprocessableEntityError";
+  }
+}

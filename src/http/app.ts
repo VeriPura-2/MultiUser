@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import { NotFoundError, PermissionDeniedError, ValidationError, VeriPuraCoreError } from "../errors.js";
+import { NotFoundError, PermissionDeniedError, UnprocessableEntityError, ValidationError, VeriPuraCoreError } from "../errors.js";
 import { adminRoutes } from "./admin.js";
 import { assertDevModeSafe, devActorEnabled, type ActorOptions } from "./actor.js";
 import { consignmentRoutes } from "./consignments.js";
@@ -40,6 +40,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     if (error instanceof PermissionDeniedError) return reply.code(403).send({ error: "forbidden", message: error.message });
     if (error instanceof NotFoundError) return reply.code(404).send({ error: "not_found", message: error.message });
     if (error instanceof ValidationError) return reply.code(400).send({ error: "invalid_request", message: error.message });
+    if (error instanceof UnprocessableEntityError) return reply.code(422).send({ error: "unprocessable", message: error.message });
     if (error instanceof VeriPuraCoreError) {
       return reply
         .code(502)

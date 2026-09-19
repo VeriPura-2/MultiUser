@@ -3,7 +3,9 @@ import {
   type AnyPgColumn,
   boolean,
   check,
+  doublePrecision,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -239,9 +241,16 @@ export const consignments = pgTable(
       .notNull()
       .references(() => users.id),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // The ship carrying the goods, entered by hand for now. All three are optional and independent.
+    // The database only checks the shape; the IMO check digit is verified in src/tracking/identifiers.ts.
+    vessel_imo: text("vessel_imo"),
+    vessel_mmsi: text("vessel_mmsi"),
+    vessel_name: text("vessel_name"),
   },
   (t) => [
     check("consignments_distinct_parties", sql`${t.importer_org_id} <> ${t.exporter_org_id}`),
+    check("consignments_vessel_imo_format", sql`${t.vessel_imo} IS NULL OR ${t.vessel_imo} ~ '^[0-9]{7}$'`),
+    check("consignments_vessel_mmsi_format", sql`${t.vessel_mmsi} IS NULL OR ${t.vessel_mmsi} ~ '^[0-9]{9}$'`),
     index("consignments_importer_idx").on(t.importer_org_id),
     index("consignments_exporter_idx").on(t.exporter_org_id),
   ],
@@ -347,6 +356,46 @@ export const webhook_events = pgTable(
   (t) => [index("webhook_events_consignment_idx").on(t.consignment_id)],
 );
 
+/**
+ * Where a vessel was, as reported by a position source. Rows are keyed by the vessel's own
+ * identifiers (not by consignment), so two consignments on one ship share them. At most 72 hours
+ * are kept per vessel (see src/tracking/ingest.ts). A position is only ever stored if it passed
+ * validation, and `source` says where it came from ("sample" for generated demo positions).
+ */
+export const vessel_positions = pgTable(
+  "vessel_positions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    vessel_imo: text("vessel_imo"),
+    vessel_mmsi: text("vessel_mmsi"),
+    lat: doublePrecision("lat").notNull(),
+    lng: doublePrecision("lng").notNull(),
+    speed_knots: doublePrecision("speed_knots"),
+    heading_deg: doublePrecision("heading_deg"),
+    // The source's navigational status code, as reported. Not interpreted here.
+    nav_status: integer("nav_status"),
+    // When the source says the position was reported, not when we received it.
+    position_time: timestamp("position_time", { withTimezone: true }).notNull(),
+    received_at: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+    source: text("source").notNull(),
+  },
+  (t) => [
+    check("vessel_positions_has_identifier", sql`${t.vessel_imo} IS NOT NULL OR ${t.vessel_mmsi} IS NOT NULL`),
+    check("vessel_positions_lat_range", sql`${t.lat} BETWEEN -90 AND 90`),
+    check("vessel_positions_lng_range", sql`${t.lng} BETWEEN -180 AND 180`),
+    index("vessel_positions_mmsi_time_idx").on(t.vessel_mmsi, t.position_time.desc()),
+    index("vessel_positions_imo_time_idx").on(t.vessel_imo, t.position_time.desc()),
+    // One row per vessel and reported time, so re-fetching the same position is harmless. A vessel
+    // is identified by its MMSI when we have one, by its IMO otherwise.
+    uniqueIndex("vessel_positions_mmsi_time_uniq")
+      .on(t.vessel_mmsi, t.position_time)
+      .where(sql`${t.vessel_mmsi} IS NOT NULL`),
+    uniqueIndex("vessel_positions_imo_time_uniq")
+      .on(t.vessel_imo, t.position_time)
+      .where(sql`${t.vessel_mmsi} IS NULL AND ${t.vessel_imo} IS NOT NULL`),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Row types
 // ---------------------------------------------------------------------------
@@ -362,3 +411,4 @@ export type PurchaseOrder = typeof purchase_orders.$inferSelect;
 export type DocumentChecklistItem = typeof document_checklist_items.$inferSelect;
 export type Issue = typeof issues.$inferSelect;
 export type WebhookEvent = typeof webhook_events.$inferSelect;
+export type VesselPosition = typeof vessel_positions.$inferSelect;

@@ -263,6 +263,10 @@ export interface ConsignmentSummary {
   /** Where the goods start and end, for the dashboard's route column. */
   originCountry: string;
   destinationCountry: string;
+  /** The vessel carrying the goods, when someone has entered it. */
+  vesselImo: string | null;
+  vesselMmsi: string | null;
+  vesselName: string | null;
   /** verified items over all items the viewer can see (status_only and full; hidden excluded). */
   checklistCompleteness: { verified: number; total: number };
   /** Items with an open or correction_requested issue that the viewer can see at full view. */
@@ -350,6 +354,9 @@ export async function listConsignments(actingUser: UserRef): Promise<Consignment
         exporterOrgName: nameOf.get(c.exporter_org_id) ?? "",
         originCountry: c.origin_country,
         destinationCountry: c.destination_country,
+        vesselImo: c.vessel_imo,
+        vesselMmsi: c.vessel_mmsi,
+        vesselName: c.vessel_name,
         checklistCompleteness: { verified: totals.visibleVerified, total: totals.visibleTotal },
         openIssueCount: totals.openIssueItems,
       };
@@ -488,6 +495,10 @@ export interface ConsignmentDetail {
   hsCode: string | null;
   originCountry: string;
   destinationCountry: string;
+  /** The vessel carrying the goods, when someone has entered it. */
+  vesselImo: string | null;
+  vesselMmsi: string | null;
+  vesselName: string | null;
   importerOrg: { id: string; name: string };
   exporterOrg: { id: string; name: string };
   createdAt: Date;
@@ -519,6 +530,9 @@ export async function getConsignmentDetail(consignmentId: string, actingUser: Us
       hsCode: c.hs_code,
       originCountry: c.origin_country,
       destinationCountry: c.destination_country,
+      vesselImo: c.vessel_imo,
+      vesselMmsi: c.vessel_mmsi,
+      vesselName: c.vessel_name,
       importerOrg: { id: c.importer_org_id, name: nameOf.get(c.importer_org_id) ?? "" },
       exporterOrg: { id: c.exporter_org_id, name: nameOf.get(c.exporter_org_id) ?? "" },
       createdAt: c.created_at,
