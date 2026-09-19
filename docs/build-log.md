@@ -182,3 +182,33 @@ Stage 1 code (`src/db`, `src/permissions`, `src/audit`, `src/services/organizati
 - A bug caught while writing this step: an `eq(a) && eq(b)` in the status update's `WHERE` would have silently dropped the id filter (JavaScript `&&` on two SQL objects returns the second), updating every `po_submitted` consignment. Fixed to `and(...)`. TypeScript cannot catch that; step 6 adds a test that sending one consignment leaves another `po_submitted` consignment untouched.
 
 **Tests:** none yet for this step (step 6). `tsc --noEmit` clean.
+
+---
+
+## 2026-09-19, Stage 2, Step 4 (built before Step 2): Inbound contract, `POST /webhooks/veripura-core/checklist`
+
+**Built**
+- `src/core/validate.ts`: `parseChecklistPayload`, strict validation of `{ consignmentId, externalCoreId?, requiredDocuments: [{ documentTypeName, requiredBy }] }`.
+- `src/services/checklist.ts`: `applyChecklist(payload, actingUser?)`, the single code path for both this endpoint and the stub client's synchronous checklist. Plus `logFailedInboundWebhook`.
+- `src/http/webhooks.ts`: the Fastify route, registered as an encapsulated plugin. `src/http/app.ts`: `buildApp()` (does not listen, so tests use `app.inject()`), plus `GET /health`.
+- Dependency: `fastify` 5.
+
+**How it behaves**
+- Signature: HMAC-SHA256 of the **raw body bytes**, hex, in `X-VeriPura-Signature` (a `sha256=` prefix is also accepted), compared in constant time. Verified before any JSON parsing. Missing, malformed, or wrong: 401 `invalid_signature`, and nothing is written or logged. If no secret is configured the endpoint returns 503 and refuses everything; there is no bypass.
+- Idempotent: checklist items are unique per (consignment, document type, requiredBy) and inserted with `ON CONFLICT DO NOTHING`. A replay creates nothing, returns 200 with `duplicate: true`, and writes no audit row. A payload that adds a new document to an existing checklist adds just that item.
+- `externalCoreId` first write wins under a row lock on the consignment: stored only if null. A later different value is ignored and recorded in the audit metadata (`external_core_id_ignored`).
+- Document types are found case-insensitively by name, or created (category left null).
+- Status moves to `checklist_received` only from `po_submitted` or `checklist_pending`. It never moves backward from `active`. Consignments that are `completed` or `cancelled` refuse a checklist (409).
+- Every call that reaches `applyChecklist` writes an inbound `webhook_events` row (`received`). Authenticated calls that fail write one with status `failed` (bad JSON, bad payload, unknown consignment with `consignment_id` null, or state conflict). Audit `consignment.checklist_received` (actor null, system) is written only when something changed.
+- Responses: 200 `{ ok, consignmentId, status, itemsCreated, duplicate }`, 400 `invalid_payload`, 401 `invalid_signature`, 404 `consignment_not_found`, 409 `consignment_state_conflict`, 503 `webhook_secret_not_configured`.
+
+**Decisions not fully specified in the prompt**
+- A callback for a consignment still in `po_submitted` (a fast live core answering before our own status update lands) is accepted and moves straight to `checklist_received`; `sendToVeriPuraCore` only advances from `po_submitted`, so it cannot pull it back.
+- An empty `requiredDocuments` array is rejected (400) rather than treated as "no documents needed". Payloads are limited to 200 documents, names to 200 characters.
+- Duplicate entries inside one payload (same name ignoring case, same requiredBy) are collapsed.
+- No timestamp or nonce replay protection, since idempotency already makes replays harmless. Worth revisiting if the contract adds timestamps.
+- Signed failures are logged in `webhook_events` with the body (truncated to 4000 characters for invalid JSON). Unsigned or wrongly signed requests are deliberately not stored, so an unauthenticated caller cannot fill the table.
+
+**Smoke check (before step 6's real tests):** ran the app with `inject()` for no signature, wrong signature, signature over a different body, bad JSON, bad payload, unknown consignment, and no configured secret. All returned the codes above, and only the three authenticated failures were logged. The dev database rows it created were removed.
+
+**Tests:** none yet (step 6). `tsc --noEmit` clean.
