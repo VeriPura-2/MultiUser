@@ -6,3 +6,7 @@ dist/
 *.log
 .DS_Store
 .storage/
+
+# Design source documents that live beside the code but are not part of this repo.
+Veripura_Comparison_Two_Product_Architecture_Documents.docx
+trade_compliance_control_tower_design.pdf
