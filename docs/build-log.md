@@ -489,3 +489,21 @@ project's own memory, and the memory cannot fall behind. Four steps: 1 (the memo
 - A first cold-start test (`claude -p` in this folder, asking memory-only questions) did not return the memory recital. It returned a `/wrapup` attempt. Cause: the session finished its answer while the tree held uncommitted new code and no doc updates, so the Stop hook blocked the stop and pushed the session into wrapping up (it had no tool permissions, so it stopped and reported). Nothing was changed, and HEAD was unaffected. This is the hook doing its job end to end, and it also means a test of a cold start must be run against a clean tree. Recorded in the memory's Gotchas.
 
 **Tests:** no source changed in this step. Suite unchanged at 206 of 206 (verified by `memory:check --full` in step 2).
+
+---
+
+## 2026-09-19, Memory step 4: verification of the restart path
+
+The point of this work is that a session with no history can restart the project from its memory, so it was tested that way rather than assumed.
+
+**Cold-start test A (memory only).** A brand-new `claude -p` session in this folder, with no tools and no files read, recited from `CLAUDE.md` alone: standing rule 1, what the ask-before-pattern-fix rule requires, the test count (206) and date, the start and end commands, real open items, and the next work (UI-1, then UI-2). The memory loads automatically.
+
+**Cold-start test B (`/pickup` end to end).** `claude -p "/pickup"` with read-only tools dispatched the command, read the spec and the last build-log entry, confirmed `main` equals `origin/main` (`c5aae93`), the local noreply email and the hooks path, brought up the sandbox, ran typecheck and `memory:check --full` (ok, so 206 tests passing and the memory's facts true), spot-checked three open items against the code, and recommended UI-1. The repository was untouched afterward. It also found genuine drift: two History rows still said "see git log" for commits that now exist. Fixed in this entry's commit, which is the routine working as intended.
+
+**Live negative test of the git hook.** After the step 2 commit, a code-only change was staged and committed. The real pre-commit hook refused it (exit 1) with instructions naming both docs, and the scratch change was reverted with history intact.
+
+**Also confirmed:** `veripura` is defined in a fresh PowerShell (`Get-Command veripura`) without launching a session. The interactive path (typing `veripura`) starts the same `/pickup` that test B exercised through `claude -p`.
+
+**Known limit, stated plainly:** the hooks and `--full` audit prove the docs were touched and the checkable facts (test count, date, sections, append-only, no em dashes) are true. They cannot prove the prose is complete or that every open item is still open. `/pickup`'s drift step and the standing rules are what cover that, and only by sampling.
+
+**Tests:** 206 of 206.

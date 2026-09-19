@@ -99,8 +99,8 @@ All dates 2026-09-19. Hashes are the pushed ones (history was corrected twice be
 | First push | History corrected (two design docs removed) and re-authored to the GitHub noreply address before the first push to `origin` | `3efd9d3` |
 | Stage 3: role-scoped views | Checklist per consignment, consignment list, workload by counterparty, 170 tests | `8467261` |
 | Project memory, step 1 | `CLAUDE.md`, this file restructured, `BUILD_PROMPTS.md` (the original spec) | `0ec6e2e` |
-| Project memory, step 2 | The enforcement: `scripts/memory-check.mjs`, the git pre-commit hook, the Claude Code Stop hook, 36 tests of the enforcement itself (206 total) | see `git log` |
-| Project memory, step 3 | `/pickup` and `/wrapup` commands, `resume.ps1`, the `veripura` PowerShell command, README section, thin auto-memory pointers | see `git log` |
+| Project memory, step 2 | The enforcement: `scripts/memory-check.mjs`, the git pre-commit hook, the Claude Code Stop hook, 36 tests of the enforcement itself (206 total) | `74bbb58` |
+| Project memory, step 3 | `/pickup` and `/wrapup` commands, `resume.ps1`, the `veripura` PowerShell command, README section, thin auto-memory pointers | `c5aae93` |
 
 Key decisions (full reasoning in the build log): 404 not 403 for non-parties; a bulk permission
 resolver shared with `resolveDocumentPermissions`; hidden source documents are not named in
