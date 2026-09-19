@@ -410,3 +410,28 @@ Stage 2 code was read and reused. Build order follows the prompt: 1 (checklist e
 - The stage 2 items (unconfirmed contract with core, no automatic retry, `audit_log` not immutable, dev-only `npm audit` findings) are unchanged.
 
 **Stage 3 status:** complete. The slice described in the prompt is built: an importer can submit a PO, the platform round-trips with VeriPura core (stubbed) for a checklist, discrepancies are first-class issues worked open, correction requested, resolved, every party sees the checklist and issues filtered by the permission matrix, and an importer running consignments across several exporters has a working per-counterparty view. Document upload, automated validation, and the messaging layer remain out of scope, as the prompt says.
+
+---
+
+# Project memory and restart tooling
+
+Goal: Thomas can stop and restart the project at any time by having a fresh Claude session read the
+project's own memory, and the memory cannot fall behind. Four steps: 1 (the memory itself), 2
+(enforcement), 3 (restart and wrap-up commands), 4 (verify and push).
+
+## 2026-09-19, Memory step 1: the memory itself
+
+**Built**
+- `CLAUDE.md` (repo root): imports `docs/PROJECT_MEMORY.md` so it loads automatically in every session run from this folder, plus a short session protocol.
+- `docs/PROJECT_MEMORY.md`: restructured into the single source of truth. Now holds the standing rules (14 of them), status lines, a restart section, a description of the enforcement, the run instructions, code map, invariants, a dated history table, open items, next work, and gotchas. 133 lines, target under 250 because it loads every session.
+- `docs/BUILD_PROMPTS.md`: Thomas's original three-prompt specification, the workflow section, and the Prompt 4 (Stripe) notes, saved verbatim so a cold restart has the source of truth. Only change: em dashes replaced with spaced hyphens (this project's no-em-dash rule). Not auto-loaded because of its size.
+
+**Findings that shaped the design**
+- Claude's built-in memory is keyed by working directory. The notes saved earlier live under the tower-demo project's folder, and no memory folder existed for this repo, so a session started here would have seen none of them. Only files inside the repo reliably carry over. The repo is therefore the single source of truth, and Claude's own memory becomes a thin pointer to it (step 3).
+- The tower-demo project's `PROJECT_MEMORY.md` reached 5,198 lines and Thomas's own notes record that it "can fall a full session behind". A written rule alone did not prevent that, hence mechanical enforcement (step 2).
+
+**Decisions**
+- Standing rules carried over from the tower-demo project, chosen by Thomas: the general rules plus **ask-before-pattern-fix** (search the whole app for other instances of a found gap, present each, wait for a decision, only then fix). Tower-app-specific rules (deploy commands, Cloud Run, client naming) were left out.
+- Correction made while writing: the History table first listed three commit hashes copied from a listing taken before the commits were re-authored, so they no longer existed. Replaced with hashes verified to exist (`git cat-file -e`). The table now says explicitly that hashes from earlier notes are stale.
+
+**Tests:** no code changed in this step. Suite unchanged at 170 of 170.
