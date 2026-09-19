@@ -294,3 +294,13 @@ Stage 1 code (`src/db`, `src/permissions`, `src/audit`, `src/services/organizati
 - `npm audit`: 4 moderate findings in `drizzle-kit`'s dev-only transitive `esbuild`; the suggested fix is a breaking downgrade. Left as is.
 
 **Stage 2 status:** complete. Steps 1 to 6 built and tested. No document upload and no automated validation, per the prompt.
+
+---
+
+## 2026-09-19, Repository: first push to origin, and a history correction made before it
+
+`origin` is `https://github.com/VeriPura-2/MultiUser.git` (empty at the time of the first push).
+
+**Correction:** two design source documents that were already in this folder before the build began (`trade_compliance_control_tower_design.pdf`, `Veripura_Comparison_Two_Product_Architecture_Documents.docx`) had been committed by accident. They were unstaged in the very first commit, then swept back in by a later blanket `git add -A`. They are internal design documents that nobody asked to publish, so before the first push they were removed from every local commit (a one-off `git filter-branch` on the unpushed `main`) and added to `.gitignore`. The files themselves are unchanged on disk, verified byte for byte against the copies in history. As a result the commit hashes for steps 2 onward differ from any earlier notes; the content of every commit is otherwise identical. Nothing had been pushed, so no shared history was rewritten.
+
+**Lesson recorded:** stage explicit paths, not `git add -A`, in a folder that holds files the repo does not own.
