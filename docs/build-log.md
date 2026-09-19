@@ -48,3 +48,20 @@ Append-only. One dated entry per numbered build step. Never rewrite earlier entr
 - Trust boundary: the engine trusts the `organization_id` on the `UserRef` it is handed. Upstream middleware must load the user from the database, never from client input.
 
 **Tests:** none yet (step 5). `tsc --noEmit` clean.
+
+---
+
+## 2026-09-19, Stage 1, Step 4 (built before Step 3): Audit helper
+
+**Built**
+- `src/audit/recordAudit.ts`: `recordAudit({ actorUser, action, targetType, targetId, metadata }, db?)`. Inserts one `audit_log` row. `actorUser` may be `null` for system-initiated actions.
+
+**Order note:** step 4 was built ahead of step 3 because every lifecycle function in step 3 calls `recordAudit`. The commit history therefore shows audit helper, then lifecycle. Nothing else about the numbering changes.
+
+**Decisions not fully specified in the prompt**
+- Optional second argument `db` (a transaction handle). Lifecycle functions pass their open transaction so the audit row commits or rolls back with the mutation it describes. Default is the shared client.
+- `action` must be a dotted lowercase name (`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`), otherwise `ValidationError`. Keeps the event vocabulary greppable and stops typos like "OrgApproved" from entering the trail.
+- `metadata` defaults to `{}`. The column is NOT NULL.
+- This is append-only by convention: nothing in the codebase updates or deletes `audit_log` rows. Not enforced at the database level (no trigger yet). Worth adding before real customer data lands, since the Control Tower design treats the audit trail as the system of record.
+
+**Tests:** none yet (step 5). `tsc --noEmit` clean.
