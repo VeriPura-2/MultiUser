@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { distance, greatCircle, pointAlong, routeThrough } from "../src/map/geo";
 import { ATTRIBUTION_HTML, MAP_MAX_ZOOM, MAP_MIN_ZOOM, TILE_SUBDOMAINS, TILE_URL_DARK, TILE_URL_LIGHT, tileUrl } from "../src/map/tiles";
 import { STALE_AFTER_MINUTES, describePosition, isStale } from "../src/map/vessel";
@@ -22,6 +22,12 @@ vi.mock("leaflet", async (importOriginal) => {
   };
   return { ...real, default: { ...real, tileLayer }, tileLayer };
 });
+
+// The map is a lazily loaded chunk (Leaflet and the land data), and the first load is slow on a busy
+// machine. Load it once up front, with room to do so, so no test's own wait has to cover it.
+beforeAll(async () => {
+  await import("../src/screens/dashboard/ConsignmentMap");
+}, 90_000);
 
 const mapCard = () => screen.findByRole("region", { name: "Consignment map" });
 /** The chip for a vessel. The map's own markers are buttons with the same names, so scope to the chip row. */

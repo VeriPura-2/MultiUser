@@ -105,6 +105,21 @@ describe("roadmap: grouping by category from the API", () => {
   });
 });
 
+describe("roadmap: hidden documents", () => {
+  it("shows only what the API sends: a document it left out (hidden from this user) appears nowhere, not even in a count", async () => {
+    // The API omits hidden items entirely, so the roadmap has nothing to hide: it must not invent, count or name anything else.
+    roadmapApi(importerAdmin, {
+      checklist: [fullItem({ documentTypeName: "Visible Doc", category: "Only Category" })],
+    });
+    open();
+    const g = await group("Only Category");
+    expect(within(g).getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Only Category (1)"]);
+    expect(document.body.textContent).not.toMatch(/Hidden|Sealed|Limited access/);
+    expect(document.querySelectorAll(".row")).toHaveLength(1);
+  });
+});
+
 describe("roadmap: what a status-only viewer sees", () => {
   it("shows name and status only, under Limited access, with nothing else", async () => {
     roadmapApi(importerAdmin, {
