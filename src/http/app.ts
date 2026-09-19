@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { NotFoundError, PermissionDeniedError, ValidationError, VeriPuraCoreError } from "../errors.js";
 import { assertDevModeSafe, devActorEnabled, type ActorOptions } from "./actor.js";
+import { issueRoutes } from "./issues.js";
 import { meRoutes } from "./me.js";
 import { purchaseOrderRoutes } from "./purchaseOrders.js";
 import { viewRoutes } from "./views.js";
@@ -53,6 +54,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   app.register(purchaseOrderRoutes, actorOptions);
   app.register(viewRoutes, actorOptions);
   app.register(meRoutes, actorOptions);
+  app.register(issueRoutes, actorOptions);
 
   return app;
 }

@@ -593,3 +593,25 @@ Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-1 (eight numbered items). E
 - A `flagged` item with no unresolved issue (a data anomaly) is returned as flagged with a null issue and is not actionable, rather than being dropped.
 
 **Tests:** 16 new in `tests/actionQueue.test.ts`. Mutation-checked, each caught: `requiredBy` leaking on a status_only item; hidden items included; the flagged actionable rule using `requiredBy`; wrong sort order; finished consignments included; status_only items marked actionable; an ordinary user's `orgId` honoured. Full suite: **255 of 255**.
+
+---
+
+## 2026-09-19, UI-1 step 5: issue detail and actions
+
+**Built**
+- `src/services/issueViews.ts`: `getIssueDetail`, and the two gates `assertCanActOnIssue` and `assertCanRaiseIssueOn`. `src/http/issues.ts`: the four routes. Registered in `src/http/app.ts`.
+- `GET /issues/:issueId`: `id, consignmentId, status, problem, expectedValue, foundValue, responsibleOrgType, responsibleOrgName, checklistItem { id, documentTypeName, category, requiredBy }, sourceDocumentTypeName, createdAt, resolvedAt, availableActions, activity[]`.
+- `POST /issues/:issueId/request-correction` (body `{ message }`), `POST /issues/:issueId/resolve`, `POST /consignments/:consignmentId/checklist/:itemId/issues` (body `{ problem, expectedValue?, foundValue?, sourceChecklistItemId?, responsibleOrgType }`, 201). Thin wrappers over `requestCorrection`, `resolveIssue`, and `raiseIssue`, each answering with the refreshed issue so the UI can update in place. No comment endpoint, as the prompt says.
+
+**The one access rule.** You can see or act on an issue only if you are a party to its consignment AND your role sees the parent document at **full** view. Anything else is a 404 identical to an issue that does not exist. This is exactly what the prompt specifies for the GET ("otherwise 404"); it is applied to all four endpoints.
+
+**Decisions the prompt left open**
+- **The action endpoints apply the same gate as the GET.** The prompt says the actions are "thin wrappers" and states the visibility rule only for the GET. Without the gate on the actions, a `status_only` viewer (who is shown an item's id in the checklist) could use the API to raise, resolve, or request correction on a document they may only see the status of, and could learn an issue exists from the differing response. So a rejected attempt is a 404, changes nothing, and writes no audit row (tested).
+- **The gate lives at the HTTP boundary; the services are unchanged.** `raiseIssue`, `requestCorrection`, and `resolveIssue` still check only that the actor's org is a party. That is the open item from stage 3 and it is deliberately not changed here (the prompt says not to alter existing behavior, and the standing rule is to ask before fixing). The gate is documented in `issueViews.ts` and any new caller must apply it. `docs/PROJECT_MEMORY.md` now describes exactly this split.
+- **`availableActions: { requestCorrection, resolve }` was added to the GET.** The UI-2 prompt says to show those buttons "only to users the API allows to act". Since the gate already guarantees the viewer is a permitted actor, both are true exactly when the issue is unresolved.
+- **`responsibleOrgName`** is the party org whose type equals `responsibleOrgType` on that consignment (the importer or the exporter). It is null when the responsible type is neither (for example `logistics`). The prompt calls it nullable without defining it.
+- **`sourceDocumentTypeName` is null when the source document is hidden from the viewer** (the same rule as the checklist endpoint), and named when it is only `status_only`.
+- **Activity actor names.** The prompt says "actor display name or 'System'". A user with no name is shown by email only to colleagues in the same organization; to the other party they appear as "A user at <organization>", so one party never receives the other's contact details. A superadmin with no name shows as "VeriPura". `metadata.message` is included only when it is a non-empty string.
+- `checklistItem.id` and `consignmentId` were added so the UI can link back; they are opaque ids.
+
+**Tests:** 21 new in `tests/issueApi.test.ts`, covering every item in the prompt's list for this step (404 when the parent item is status_only or hidden, the action endpoints' audit rows with the right actor and metadata) plus validation, 401/403, the activity list, and agreement with the checklist and action queue. Mutation-checked, each caught: the gate ignoring the view level; ignoring party membership; each of the three action endpoints skipping the gate; another org's email leaking into the activity list; a hidden source document being named; actions always offered. One assertion of mine was a tautology and was replaced with the plain expectation. Full suite: **276 of 276**.
