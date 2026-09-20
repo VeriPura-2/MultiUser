@@ -1,6 +1,6 @@
 # VeriPura Platform: UI Build Prompts for Claude Code
 
-**Scope of this slice:** the web UI for the backend slice built by Prompts 1 to 3 (organizations, permission engine, audit log, PO intake, consignments, checklist, issues, party workload). Three prompts, run in order: UI-1 adds the small API surface the screens need, UI-2 builds the frontend against it, and UI-3 adds vessel tracking (vessel identifiers, a position provider, and live positions on the dashboard map). They are named UI-1, UI-2 and UI-3 so they do not clash with the "Prompt 4" reserved for Stripe billing in the notes of the backend build prompts.
+**Scope of this slice:** the web UI for the backend slice built by Prompts 1 to 3 (organizations, permission engine, audit log, PO intake, consignments, checklist, issues, party workload). Three prompts, run in order: UI-1 adds the small API surface the screens need, UI-2 builds the frontend against it, and UI-3 adds vessel tracking (vessel identifiers, a position provider with a strict API call budget, and live positions on the dashboard map). They are named UI-1, UI-2 and UI-3 so they do not clash with the "Prompt 4" reserved for Stripe billing in the notes of the backend build prompts.
 
 Run these only after Prompts 1 to 3 are complete, the full test suite passes, and the repo has a working local sandbox. Each prompt is self-contained so it can be pasted into a fresh Claude Code session, but assumes the earlier code exists in the repo. Review the diff after each stage before moving to the next.
 
@@ -278,7 +278,9 @@ Run after UI-2 is complete and merged. This is the first stage that touches real
 You are adding vessel tracking to the VeriPura platform. The backend (Prompts 1 to 3, UI-1) and
 the web app (UI-2) are already in the repo. The dashboard map currently runs on sample data from
 web/src/sample/mapSample.ts. This stage lets a consignment carry a vessel identifier, fetches
-vessel positions through a provider interface, stores them, and feeds the map. Read the existing
+vessel positions through a provider interface, stores them, and feeds the map. The first live
+provider is VesselAPI (https://vesselapi.com), on a free plan of only 150 API calls per month, so
+call budgeting is a core requirement of this stage, not an optimisation. Read the existing
 consignment routes, the permission engine, the audit log, and the map component before writing
 code. Follow the "Environment, testing, build log, and version control" workflow: local sandbox
 only, no real network calls in tests, full suite passing, build-log entry and a commit after
@@ -286,7 +288,10 @@ each numbered step.
 
 Ground rules:
 - The browser never calls an AIS provider. Only the backend does, and provider keys live in
-  environment variables, never in the frontend, the repo, or logs.
+  environment variables, never in the frontend, the repo, the build log, test fixtures, or logs.
+  Commit a `.env.example` with blank placeholders and make sure `.env` is git-ignored.
+- Opening the dashboard, refetching the API, or reloading the page must never cause a provider
+  call by itself. Provider calls happen only in the budgeted refresh job (step 2).
 - Never draw a position that is not real. If a vessel has no recent position, say so.
 - Do not guess a provider's message format or terms. Read its official documentation and
   record what you relied on in docs/build-log.md.
@@ -318,22 +323,33 @@ Ground rules:
      a minute) and drop bad ones with a logged count.
    - `SampleProvider` (default, env AIS_PROVIDER=sample): deterministic positions along
      great-circle routes for seeded vessels, every position tagged source "sample".
-   - `AisStreamProvider` (env AIS_PROVIDER=aisstream): a server-side WebSocket client for the
-     AISStream.io service (https://aisstream.io, free API key in AISSTREAM_API_KEY). Subscribe
-     with a filter on the MMSIs of vessels that active consignments reference, resubscribe when
-     that set changes, reconnect with exponential backoff and jitter, respect the documented
-     limit of three connections, and keep up with the stream (do not block the message
-     handler, because the service drops messages for slow consumers). It only ever runs on a
-     server, since browsers are not allowed to connect. Read the official docs for the exact
-     subscription and message format. Unit-test it against a fake WebSocket, never the real
-     service.
-   - Guard: the live provider refuses to start unless AIS_LIVE_ALLOWED=true. Default false.
-     Document in the code and in docs/build-log.md that AISStream's terms on commercial use
-     have not been confirmed, and that this flag exists so nobody enables live data in a paid
-     product by accident.
-   - Leave a documented extension point for a REST provider (a licensed source such as
-     VesselAPI, Datalastic or VesselFinder, polled on an interval and rate limited). Do not
-     implement it in this stage.
+   - `VesselApiProvider` (env AIS_PROVIDER=vesselapi, key in VESSELAPI_KEY): a server-side REST
+     client for VesselAPI. Read its official documentation first and record in docs/build-log.md
+     which endpoint you use, how it identifies a vessel (IMO or MMSI), whether one call can
+     return several vessels, and what counts as a billable call. Do not guess. Prefer the
+     endpoint that returns the most vessels per call. Set timeouts, treat 4xx and 5xx as
+     failures without retrying in a tight loop, and back off on 429.
+   - Call budget (mandatory): the free plan allows 150 calls per month, and the service may
+     count failed calls. Persist every provider call in a table `provider_calls` (provider,
+     called_at, purpose, status, vessels_requested). Config: VESSELAPI_MONTHLY_BUDGET (default
+     150) and VESSELAPI_RESERVE (default 15, kept back for manual use). Before any call, compute
+     calls used this calendar month (UTC) from provider_calls and refuse when used plus reserve
+     would exceed the budget. Log a warning at 80 percent.
+   - Refresh job: a scheduled job (interval from config, default every 12 hours, never faster
+     than a config minimum) selects vessels on active consignments whose latest position is
+     older than a per-vessel minimum age, orders them by consignments with open issues first,
+     batches them where the API allows, and spends at most a daily allowance of
+     (remaining budget minus reserve) divided by the days left in the month. It must do nothing
+     when no consignment has a vessel identifier. Add an admin-only POST /admin/positions/refresh
+     to trigger one run manually, which still obeys the budget. With four demo vessels this is
+     expected to refresh each one only every few days on the free plan, and that is acceptable:
+     the UI shows the true age of the position.
+   - Guard: live providers refuse to start unless AIS_LIVE_ALLOWED=true (default false), and the
+     default provider in development and tests is `sample`. Document in docs/build-log.md that
+     the free plan is for evaluation, that its commercial-use terms have not been confirmed, and
+     that this flag exists so nobody enables live data for paying customers by accident.
+   - Extension point: keep the interface open for other sources (AISStream over WebSocket, or a
+     licensed provider such as Datalastic or VesselFinder). Do not implement them in this stage.
    - Ingestion service: writes normalised positions to vessel_positions, deduplicating on
      (vessel, position_time). A failure in the provider must never break the API.
 
@@ -346,12 +362,14 @@ Ground rules:
      position or no vessel identifier), isSample (true when source is "sample"), and an optional
      `trail` of the last 24 hours of positions (max 100 points, thinned). The 2 hour threshold
      is a config value, not a literal.
+   - Add admin-only GET /admin/tracking/budget returning calls used this month, the budget, the
+     reserve, and the date of the last refresh, so the team can see how much of the plan is left.
    - Consignments with no vessel identifier return freshness "unavailable" with a reason
      "no_vessel_identifier". Do not omit them, the UI needs to say why there is no dot.
 
 4. FRONTEND WIRING
    - The dashboard map loads GET /positions (TanStack Query, refetch every 60 seconds while the
-     tab is visible) and replaces mapSample.ts as the data source when the API returns real or
+     tab is visible; this reads only our own database and never triggers a provider call) and replaces mapSample.ts as the data source when the API returns real or
      sample-provider data. Keep mapSample.ts only as the storybook and test fixture.
    - Markers: "recent" is a normal marker, "stale" is the hollow dashed marker, "unavailable"
      has no marker and instead appears in the info line ("No vessel identifier on this
@@ -369,17 +387,20 @@ Ground rules:
    IMO check digit and MMSI validation (valid, invalid, blank); PATCH writes an audit entry and
    is permission scoped; GET /positions never returns a consignment the user cannot see;
    freshness classification at the threshold boundaries; provider validation drops bad
-   positions; the AIS provider refuses to start when AIS_LIVE_ALLOWED is not true; reconnect
-   backoff with a fake timer; the ingestion service deduplicates; the frontend renders a hollow
+   positions; the live provider refuses to start when AIS_LIVE_ALLOWED is not true; the call budget blocks a
+   call when used plus reserve would exceed the budget, resets on a new calendar month, and
+   counts failed calls; a 429 triggers backoff; the refresh job does nothing without vessel
+   identifiers and never exceeds the daily allowance; loading the dashboard makes zero provider
+   calls; no key ever appears in logs or responses; the ingestion service deduplicates; the frontend renders a hollow
    marker for stale, no marker for unavailable, and the correct flag for sample and live data.
    No test may touch the network.
 
-Explicit exclusions for this stage: buying or configuring satellite AIS, ETA prediction, port
+Explicit exclusions for this stage: upgrading the VesselAPI plan, buying or configuring satellite AIS, the AISStream client, ETA prediction, port
 geofencing and arrival alerts, container-level tracking, AI extraction of vessel details from
 documents, and any paid provider integration.
 
 Finish with a short docs/tracking.md covering the provider interface, the env variables
-(AIS_PROVIDER, AIS_LIVE_ALLOWED, AISSTREAM_API_KEY, the freshness threshold), the coverage
+(AIS_PROVIDER, AIS_LIVE_ALLOWED, VESSELAPI_KEY, VESSELAPI_MONTHLY_BUDGET, VESSELAPI_RESERVE, the refresh interval, the freshness threshold), the coverage
 limits described below, and what must be decided before live data is turned on for customers.
 ```
 
@@ -391,7 +412,8 @@ limits described below, and what must be decided before live data is turned on f
 - **Map tiles and licence.** The basemap is CARTO tiles built on OpenStreetMap data, with the attribution shown on the map. Before customers use it, confirm CARTO's current terms for commercial use and any usage limits on free tiles, and decide whether to move to a paid or self-hosted tile provider. Because the tile URLs live in one file (`web/src/map/tiles.ts`), that swap does not touch components. The Natural Earth land fallback is public domain.
 - **The map is illustrative until UI-3.** Until then the positions come from `mapSample.ts` and are flagged "Sample positions". UI-3 adds the vessel identifier fields, the provider interface, and the position endpoints.
 - **AIS coverage has a hard limit.** Free and low-cost AIS feeds mostly come from land-based receivers, which reach roughly 40 to 60 km offshore, so a ship in mid-ocean will often have no position. Satellite AIS fills the gap and is where the cost is. The UI is built to say "no recent position" instead of drawing a guess. Decide before launch whether customers need satellite coverage.
-- **AISStream's commercial terms are unconfirmed.** It is a free service suited to prototyping, and a public question about commercial use was unanswered when checked. Ask them directly, or use a licensed provider (VesselAPI, Datalastic, VesselFinder, or a larger vendor), before live data is enabled for paying customers. UI-3 keeps live data off unless AIS_LIVE_ALLOWED=true.
+- **The free VesselAPI plan is 150 calls a month, so it is a demo tier.** That is roughly five calls a day, so UI-3 budgets calls, refreshes rarely, and shows the true age of every position. It is enough to prove the flow with a handful of vessels. A production launch needs a paid plan or another licensed provider, and the commercial-use terms of whichever plan is chosen should be confirmed first. Keep the API key in the backend `.env` only.
+- **AISStream is a possible later source.** It is free and streams over WebSocket from a server, but a public question about its commercial use was unanswered when checked. UI-3 leaves an extension point for it and does not build it.
 - **Vessel identifiers are manual for now.** The IMO or MMSI is typed in. Reading it from a bill of lading needs the extraction stage and the confirmed document list.
 - **Quantity, applicant country, and due dates are absent on purpose.** The mockups show a quantity on the consignment header and a country on the applicant. Neither is in the schema, and the UI-1 and UI-2 prompts tell the CLI to omit them rather than add columns silently. Add them as a deliberate schema change if you want them.
 - **Deferred and still open:** document upload, the messaging and comment layer, AI extraction on intake, Guardian and forensic features, real sign-in, and Stripe billing. Each is a separate stage.
