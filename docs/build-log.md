@@ -1026,3 +1026,23 @@ Source: `docs/veripura-cli-ui-prompts.md`, Prompt UI-3 (five numbered steps), as
 **What UI-3 did not do, by the prompt's exclusions:** the VesselAPI plan was not upgraded, no satellite AIS, no AISStream client, no ETA prediction, no port geofencing or arrival alerts, no container tracking, no AI extraction of vessel details, and no paid provider integration.
 
 **Still open (also in `docs/PROJECT_MEMORY.md`):** the map tiles' "API KEY REQUIRED" watermark; the incomplete mutation checks for UI-2 steps 2 and 5; the UI-3 decisions listed in step 2 (the reserve, who may set a vessel, how VesselAPI counts a batch); a real-browser look at the new map states (the extension refused the tab in step 4); and the earlier open items.
+
+## 2026-09-20, UI-3 follow-up: either party may set the vessel
+
+**Decisions (Thomas, in answer to the two open questions from UI-3 step 1 and step 2)**
+- **Who may set or change a consignment's vessel: the importing organization and the exporting organization** (and superadmin). Thomas asked for importer, exporter and freight forwarder. The first two are the consignment's two parties and needed only a one-line change. **Freight forwarders are deferred, and this is why:** a consignment is linked to exactly two organizations (`importer_org_id` and `exporter_org_id`), and party membership (`isPartyTo`) checks only those. A forwarder (an organization of type `logistics`) is linked to no consignment, so a forwarder user cannot see any consignment (the API answers 404, and `tests/uiJourney.test.ts` already covers the forwarder being shut out). Letting forwarders set a vessel first needs a designed way to attach a forwarder to a consignment (who attaches it, importer or exporter, and how it is removed), and that changes what forwarders can see across the list, the checklist, the issues and the positions. It is a stage of its own, not a side effect of a permission tweak.
+- **The reserve stays as built:** automatic runs stop at 135 of the 150 monthly lookups, a manual refresh may use the last 15, and nothing ever passes 150.
+
+**Changed** (backend only; the web app has no screen for editing a vessel)
+- `src/services/vessel.ts`: the importer-only check is gone. The existing party check already gives importer, exporter and superadmin access and gives everyone else the same 404 as a missing consignment. The exporter no longer gets a 403.
+- Comments in `src/services/vessel.ts` and `src/http/consignments.ts`, `docs/tracking.md` and the README's route table now say "either party or superadmin".
+- Nothing under `src/tracking/` changed.
+
+**Tests** (`tests/vesselIdentifiers.test.ts`, 35 tests, three replaced and two added)
+- The exporter can set, change and clear the vessel, and the audit rows name the exporter's user, with the old and new values.
+- Importer colleague, exporter colleague and superadmin can all do it, and each sees what the other set.
+- A user of a freight forwarder organization gets the identical 404 as for a consignment that does not exist, changes nothing and audits nothing, and cannot read the consignment either. That documents today's limit.
+- Permission is still checked before the body: a stranger still gets 404 for a bad value, and a party is now told what is wrong (422).
+- **Mutation check, complete: 4 mutants, all caught** (the exporter refused again, the importer refused, anyone allowed, and the audit row naming nobody).
+
+**Still open:** freight forwarder access (needs the design above); VesselAPI's unclear batch counting and terms (ask support@vesselapi.com, or measure with one manual refresh once a key exists); the map tiles' watermark; the incomplete mutation checks for UI-2 steps 2 and 5; a real-browser look at the new map states.

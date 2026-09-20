@@ -90,8 +90,8 @@ export const consignmentRoutes: FastifyPluginAsync<ActorOptions> = async (app, o
   /**
    * PATCH /consignments/:id/vessel (JSON): set or clear the vessel identifiers. Send any of
    * vesselImo, vesselMmsi, vesselName; a field that is absent is left alone, and null or blank
-   * clears it. Only the importing organization (or superadmin) may. 422 for a malformed value,
-   * 403 for the exporter, 404 for anyone who is not a party. Answers with the consignment's detail.
+   * clears it. Either party (importing or exporting organization) or superadmin may. 422 for a
+   * malformed value, 404 for anyone who is not a party (a freight forwarder is not one yet). Answers with the consignment's detail.
    */
   app.patch<{ Params: { consignmentId: string } }>("/consignments/:consignmentId/vessel", async (request, reply) => {
     const actingUser = await resolveActingUser(request, options.allowDevActorHeader ?? false);

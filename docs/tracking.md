@@ -4,7 +4,7 @@ How a consignment's ship gets onto the dashboard map, what it costs, what it can
 
 ## How it fits together
 
-1. **A person enters the ship.** A consignment can carry a vessel name, an IMO number and an MMSI, each optional. They are typed in on the New Consignment form, or set later with `PATCH /consignments/:id/vessel` (importing organization or superadmin, audited). The IMO must be seven digits and pass the check digit; the MMSI must be exactly nine digits; anything else is a 422. Reading them from a bill of lading is a later stage.
+1. **A person enters the ship.** A consignment can carry a vessel name, an IMO number and an MMSI, each optional. They are typed in on the New Consignment form, or set later with `PATCH /consignments/:id/vessel` (either party, or superadmin, audited). The IMO must be seven digits and pass the check digit; the MMSI must be exactly nine digits; anything else is a 422. Reading them from a bill of lading is a later stage.
 2. **One job asks a provider.** The refresh job (`src/tracking/refresh.ts`) is the only code that calls a position provider. It runs on a schedule and can be triggered by a superadmin with `POST /admin/positions/refresh`. It picks vessels on live consignments whose latest position is old enough to be worth refreshing, asks in as few calls as the provider allows, validates what comes back and stores it in `vessel_positions` (72 hours kept, duplicates ignored).
 3. **Everything else reads our own database.** `GET /positions`, `GET /consignments/:id/position` and the dashboard never reach a provider. Opening the dashboard, refetching every minute, or reloading the page cannot cost a call. This is tested, not assumed.
 4. **The browser never calls a provider,** and the provider key exists only in the backend's environment.
@@ -61,7 +61,7 @@ These are decisions, not code:
 2. **A paid plan or another licensed provider.** 150 calls a month is a demo tier. Basic (1,500 a month) and above are listed; whichever is chosen, set `VESSELAPI_MONTHLY_BUDGET` to match.
 3. **Satellite coverage.** Decide whether customers need positions in mid-ocean. It is where the cost is, and it is not built.
 4. **Verify how a batch is counted.** The documentation does not say whether one batch call counts as one call or one per vessel, what the batch endpoint returns per vessel, or its maximum number of ids. Make one manual refresh and compare VesselAPI's own usage counter with `GET /admin/tracking/budget`. If a batch of N counts as N, set `VESSELAPI_BATCH_SIZE=1`.
-5. **Who may enter the vessel.** Today only the importing organization (and superadmin). The exporter or logistics may need to.
+5. **Freight forwarders.** The importing and the exporting organization (and superadmin) may enter the vessel. A forwarder may not yet: forwarders are linked to no consignment, so they cannot see one. Giving them access needs a designed way to attach a forwarder to a consignment (who attaches it, and how it is removed), which changes what they can see across the app.
 6. **Where the key lives.** A `.env` file is fine for evaluation; production needs a secret manager. Real sign-in must exist before any customer uses the app.
 7. **Turning it on deliberately.** Set `AIS_PROVIDER=vesselapi`, `VESSELAPI_KEY` and `AIS_LIVE_ALLOWED=true` on a machine that is meant to make live calls, and nowhere else.
 8. **The map's tile provider** (a separate decision): CARTO's public tiles currently return a watermark asking for a key.

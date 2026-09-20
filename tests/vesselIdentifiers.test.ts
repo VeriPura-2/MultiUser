@@ -246,22 +246,53 @@ describe("PATCH /consignments/:id/vessel", () => {
     expect((await patch(s.consignment.id, s.importerAdmin.id, [])).statusCode).toBe(400);
   });
 
-  it("lets a superadmin do it, and any user of the importing organization", async () => {
+  it("lets a superadmin do it, and any user of either party: the importing organization or the exporting one", async () => {
     const s = await scenario();
     const superadmin = await createSuperadmin();
     expect((await patch(s.consignment.id, superadmin.id, { vesselName: "By Superadmin" })).statusCode).toBe(200);
-    const colleague = await createUserWithRoles(s.parties.importer, ["Viewer"]);
-    expect((await patch(s.consignment.id, colleague.id, { vesselName: "By Colleague" })).statusCode).toBe(200);
+    const importerColleague = await createUserWithRoles(s.parties.importer, ["Viewer"]);
+    expect((await patch(s.consignment.id, importerColleague.id, { vesselName: "By Importer Colleague" })).statusCode).toBe(200);
+    const exporterColleague = await createUserWithRoles(s.parties.exporter, ["Viewer"]);
+    expect((await patch(s.consignment.id, exporterColleague.id, { vesselName: "By Exporter Colleague" })).statusCode).toBe(200);
     const actors = (await auditRows(s.consignment.id)).filter((a) => a.action === "consignment.vessel_updated").map((a) => a.actor_user_id);
-    expect(actors).toEqual([superadmin.id, colleague.id]);
+    expect(actors).toEqual([superadmin.id, importerColleague.id, exporterColleague.id]);
   });
 
-  it("is a 403 for the exporter, who is a party but not the owner, and changes nothing", async () => {
+  it("lets the exporter set, change and clear it, and the audit row names the exporter's user", async () => {
     const s = await scenario();
-    const res = await patch(s.consignment.id, s.exporterAdmin.id, { vesselImo: VALID_IMO });
-    expect(res.statusCode).toBe(403);
+    const set = await patch(s.consignment.id, s.exporterAdmin.id, { vesselImo: VALID_IMO, vesselName: "Booked Vessel" });
+    expect(set.statusCode).toBe(200);
+    expect(set.json()).toMatchObject({ vesselImo: VALID_IMO, vesselName: "Booked Vessel" });
+    expect((await patch(s.consignment.id, s.exporterAdmin.id, { vesselName: "Changed Vessel" })).json()).toMatchObject({ vesselName: "Changed Vessel" });
+    expect((await patch(s.consignment.id, s.exporterAdmin.id, { vesselImo: null })).json()).toMatchObject({ vesselImo: null });
+    const entries = (await auditRows(s.consignment.id)).filter((a) => a.action === "consignment.vessel_updated");
+    expect(entries).toHaveLength(3);
+    expect(entries.every((e) => e.actor_user_id === s.exporterAdmin.id)).toBe(true);
+    expect(entries[0]!.metadata).toEqual({
+      old: { vessel_imo: null, vessel_mmsi: null, vessel_name: null },
+      new: { vessel_imo: VALID_IMO, vessel_mmsi: null, vessel_name: "Booked Vessel" },
+    });
+  });
+
+  it("the importer sees what the exporter set, and the exporter sees what the importer set", async () => {
+    const s = await scenario();
+    await patch(s.consignment.id, s.exporterAdmin.id, { vesselName: "Exporter's Entry" });
+    expect((await call("GET", `/consignments/${s.consignment.id}`, s.importerAdmin.id)).json()).toMatchObject({ vesselName: "Exporter's Entry" });
+    await patch(s.consignment.id, s.importerAdmin.id, { vesselMmsi: VALID_MMSI });
+    expect((await call("GET", `/consignments/${s.consignment.id}`, s.exporterAdmin.id)).json()).toMatchObject({ vesselMmsi: VALID_MMSI });
+  });
+
+  it("is the same 404 for a freight forwarder, who is not linked to any consignment yet, and changes nothing", async () => {
+    const s = await scenario();
+    const forwarder = await createActiveOrg("logistics");
+    const asForwarder = await patch(s.consignment.id, forwarder.admin.id, { vesselImo: VALID_IMO });
+    const missing = await patch("00000000-0000-4000-8000-000000000000", forwarder.admin.id, { vesselImo: VALID_IMO });
+    expect(asForwarder.statusCode).toBe(404);
+    expect(asForwarder.json()).toEqual(missing.json());
     expect((await row(s.consignment.id)).vessel_imo).toBeNull();
     expect((await auditRows(s.consignment.id)).filter((a) => a.action === "consignment.vessel_updated")).toHaveLength(0);
+    // The forwarder cannot see the consignment either, which is why it cannot set its vessel.
+    expect((await call("GET", `/consignments/${s.consignment.id}`, forwarder.admin.id)).statusCode).toBe(404);
   });
 
   it("is the same 404 for a stranger as for a consignment that does not exist, and for a malformed id", async () => {
@@ -284,7 +315,8 @@ describe("PATCH /consignments/:id/vessel", () => {
     const s = await scenario();
     const stranger = await createActiveOrg("importer");
     expect((await patch(s.consignment.id, stranger.admin.id, { vesselImo: "nonsense" })).statusCode).toBe(404);
-    expect((await patch(s.consignment.id, s.exporterAdmin.id, { vesselImo: "nonsense" })).statusCode).toBe(403);
+    // A party is allowed to try, so it is told what is wrong with the value.
+    expect((await patch(s.consignment.id, s.exporterAdmin.id, { vesselImo: "nonsense" })).statusCode).toBe(422);
   });
 });
 

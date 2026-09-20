@@ -123,7 +123,7 @@ identical to "does not exist", never a 403. Details and the reasoning for each c
 | `POST /consignments` | an importer org user | multipart PO form (`file`, `exporterOrgId`, `commodity`, `originCountry`, `destinationCountry`, optional `hsCode`, `vesselImo`, `vesselMmsi`, `vesselName`); 201 with the consignment |
 | `GET /admin/organizations`, `GET /admin/organizations/:id` | superadmin | organizations with the applicant, and the five standard roles with their configured default permissions (or "not configured") |
 | `POST /admin/organizations/:id/approve`, `.../reject` | superadmin | the refreshed organization |
-| `PATCH /consignments/:id/vessel` | the importing org, superadmin | body: any of `vesselImo`, `vesselMmsi`, `vesselName` (null or blank clears); 422 if malformed; audited |
+| `PATCH /consignments/:id/vessel` | either party, superadmin | body: any of `vesselImo`, `vesselMmsi`, `vesselName` (null or blank clears); 422 if malformed; audited |
 | `GET /positions`, `GET /consignments/:id/position` | a party (as `GET /consignments`) | each consignment's position, `freshness` (recent, stale, unavailable and why), age, `isSample`, and a 24-hour `trail`; reads only our own database |
 | `GET /admin/tracking/budget` | superadmin | provider calls used this month, the budget, the reserve, any back-off, the last refresh |
 | `POST /admin/positions/refresh` | superadmin | runs one position refresh now (obeys the call budget) and says what it did |
